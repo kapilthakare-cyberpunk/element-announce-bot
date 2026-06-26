@@ -100,7 +100,7 @@ def get_matrix_client():
         max_limit_exceeded=0,
         max_timeouts=0,
         store_sync_tokens=True,
-        encryption_enabled=True,
+        encryption_enabled=False,
     )
     client = AsyncClient(
         HOMESERVER,
