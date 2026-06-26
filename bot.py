@@ -57,6 +57,7 @@ load_dotenv(BASE_DIR / ".env")
 HOMESERVER = os.getenv("HOMESERVER", "https://matrix.example.org")
 USER_ID = os.getenv("USER_ID", "")
 PASSWORD = os.getenv("PASSWORD", "")
+ACCESS_TOKEN = os.getenv("ACCESS_TOKEN", "")
 ADMIN_ID = os.getenv("ADMIN_ID", "")
 DEVICE_NAME = "element-announce-bot"
 
@@ -515,8 +516,11 @@ class BotCallbacks:
 
 
 async def main():
-    if not USER_ID or not PASSWORD:
-        log.error("USER_ID and PASSWORD must be set in .env")
+    if not USER_ID:
+        log.error("USER_ID must be set in .env")
+        return
+    if not PASSWORD and not ACCESS_TOKEN:
+        log.error("Set either PASSWORD or ACCESS_TOKEN in .env")
         return
 
     client_config = AsyncClientConfig(
@@ -560,6 +564,9 @@ async def main():
                 "access_token": client.access_token,
                 "device_id": client.device_id,
             }))
+    elif ACCESS_TOKEN:
+        client.access_token = ACCESS_TOKEN
+        log.info("Using access token from .env")
     else:
         resp = await client.login(PASSWORD, device_name=DEVICE_NAME)
         if isinstance(resp, LoginError):
