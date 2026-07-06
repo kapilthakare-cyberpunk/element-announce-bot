@@ -1,3 +1,21 @@
 {
-  "announcements": []
+  "announcements": [
+    {
+      "id": 1,
+      "text": "Hello! This is a test announcement from the Element Announce Bot to verify the bot and E2EE tracking setup. Please react with ✅ to confirm you received it.",
+      "completed_by": [],
+      "sent_messages": [
+        {
+          "user_id": "@kapilsthakare:matrix.org",
+          "name": "Kapil Thakare",
+          "event_id": "$T_J0VIGqjlmCBxBR0o61t34BXd3DVlh11JAGp-gDFu4"
+        },
+        {
+          "user_id": "@rohitejejurkar:matrix.org",
+          "name": "Rohit Jejurkar",
+          "event_id": "$-_O_ABDq3UEVBKuaqoL7rOhirZv5-a0zftVG2M5_qaE"
+        }
+      ]
+    }
+  ]
 }

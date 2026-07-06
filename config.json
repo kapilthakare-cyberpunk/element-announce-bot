@@ -1,4 +1,16 @@
 {
-  "members": [],
-  "test_user_ids": []
+  "members": [
+    {
+      "user_id": "@kapilsthakare:matrix.org",
+      "name": "Kapil Thakare"
+    },
+    {
+      "user_id": "@rohitejejurkar:matrix.org",
+      "name": "Rohit Jejurkar"
+    }
+  ],
+  "test_user_ids": [
+    "@rohitejejurkar:matrix.org",
+    "@kapilsthakare:matrix.org"
+  ]
 }

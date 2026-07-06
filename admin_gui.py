@@ -16,11 +16,29 @@ import threading
 from pathlib import Path
 
 import customtkinter as ctk
-from dotenv import load_dotenv
 from nio import (
     AsyncClient,
     AsyncClientConfig,
     LoginError,
+)
+
+from common import (
+    BASE_DIR,
+    CONFIG_FILE,
+    DATA_FILE,
+    CREDENTIALS_FILE,
+    STORE_PATH,
+    HOMESERVER,
+    USER_ID,
+    PASSWORD,
+    ACCESS_TOKEN,
+    ADMIN_ID,
+    ROOM_ID,
+    load_config,
+    load_data,
+    save_config,
+    save_data,
+    get_member_name,
 )
 
 # ---------------------------------------------------------------------------
@@ -30,63 +48,7 @@ from nio import (
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-# ---------------------------------------------------------------------------
-# Paths & env
-# ---------------------------------------------------------------------------
-
-BASE_DIR = Path(__file__).parent
-CONFIG_FILE = BASE_DIR / "config.json"
-DATA_FILE = BASE_DIR / "data.json"
-CREDENTIALS_FILE = BASE_DIR / "credentials.json"
-STORE_PATH = str(BASE_DIR / "store")
-
-load_dotenv(BASE_DIR / ".env")
-HOMESERVER = os.getenv("HOMESERVER", "https://matrix.example.org")
-USER_ID = os.getenv("USER_ID", "")
-PASSWORD = os.getenv("PASSWORD", "")
-ADMIN_ID = os.getenv("ADMIN_ID", "")
-ROOM_ID = os.getenv("ROOM_ID", "")
 DEVICE_NAME = "element-announce-bot-gui"
-
-# ---------------------------------------------------------------------------
-# Data layer
-# ---------------------------------------------------------------------------
-
-
-def load_json(path, default):
-    try:
-        if path.exists():
-            return json.loads(path.read_text())
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"Error reading {path}: {e}")
-    return default
-
-
-def save_json(path, data):
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-
-
-def load_config():
-    return load_json(CONFIG_FILE, {"members": [], "test_user_ids": []})
-
-
-def load_data():
-    return load_json(DATA_FILE, {"announcements": []})
-
-
-def save_config(config):
-    save_json(CONFIG_FILE, config)
-
-
-def save_data(data):
-    save_json(DATA_FILE, data)
-
-
-def get_member_name(config, user_id, default=None):
-    for m in config["members"]:
-        if m["user_id"] == user_id:
-            return m["name"]
-    return default or user_id
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +62,7 @@ def get_matrix_client():
         max_limit_exceeded=0,
         max_timeouts=0,
         store_sync_tokens=True,
-        encryption_enabled=False,
+        encryption_enabled=True,
     )
     client = AsyncClient(
         HOMESERVER,
