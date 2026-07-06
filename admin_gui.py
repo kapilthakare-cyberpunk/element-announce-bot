@@ -39,6 +39,7 @@ from common import (
     save_config,
     save_data,
     get_member_name,
+    get_or_create_dm_room,
 )
 
 # ---------------------------------------------------------------------------
@@ -281,34 +282,36 @@ class AdminApp(ctk.CTk):
 
             for m in members:
                 try:
-                    resp = await matrix_send(client, ROOM_ID, text)
-                    if hasattr(resp, "event_id"):
-                        sent_list.append({
-                            "user_id": m["user_id"],
-                            "name": m["name"],
-                            "event_id": resp.event_id,
-                        })
-                        self.after(0, lambda n=m["name"]: self._log_send(f"Sent to {n}"))
+                    dm_room_id = await get_or_create_dm_room(client, m["user_id"])
+                    if dm_room_id:
+                        resp = await matrix_send(client, dm_room_id, text)
+                        if hasattr(resp, "event_id"):
+                            sent_list.append({
+                                "user_id": m["user_id"],
+                                "name": m["name"],
+                                "event_id": resp.event_id,
+                            })
+                            self.after(0, lambda n=m["name"]: self._log_send(f"Sent to {n}"))
                 except Exception as e:
                     self.after(0, lambda n=m["name"]: self._log_send(f"Failed: {n} ({e})", "red"))
 
-            data["announcements"].append({
-                "id": ann_id,
-                "text": text,
-                "completed_by": [],
-                "sent_messages": sent_list,
-            })
-            save_data(data)
-
-            ok = len(sent_list)
-            total = len(members)
-            self.after(
-                0,
-                lambda: self._log_send(
-                    f"Sent to {ok}/{total} members - announcement #{ann_id}",
-                    "green",
-                ),
-            )
+            if sent_list:
+                data["announcements"].append({
+                    "id": ann_id,
+                    "text": text,
+                    "completed_by": [],
+                    "sent_messages": sent_list,
+                })
+                save_data(data)
+                self.after(
+                    0,
+                    lambda: self._log_send(
+                        f"Successfully sent announcement #{ann_id} to {len(sent_list)}/{len(members)} DMs.",
+                        "green",
+                    ),
+                )
+            else:
+                self.after(0, lambda: self._log_send("Failed to send announcement", "red"))
             await client.close()
 
         loop.run_until_complete(_do())
@@ -361,14 +364,16 @@ class AdminApp(ctk.CTk):
             ok = 0
             for m in members:
                 try:
-                    resp = await matrix_send(client, ROOM_ID, text)
-                    if hasattr(resp, "event_id"):
-                        ok += 1
-                        self.after(0, lambda n=m["name"]: self._log_send(f"Sent test to {n}"))
+                    dm_room_id = await get_or_create_dm_room(client, m["user_id"])
+                    if dm_room_id:
+                        resp = await matrix_send(client, dm_room_id, text)
+                        if hasattr(resp, "event_id"):
+                            ok += 1
+                            self.after(0, lambda n=m["name"]: self._log_send(f"Sent test to {n}"))
                 except Exception as e:
                     self.after(0, lambda n=m["name"]: self._log_send(f"Failed: {n} ({e})", "red"))
 
-            self.after(0, lambda: self._log_send(f"Test sent to {ok}/{len(members)} users.", "green"))
+            self.after(0, lambda: self._log_send(f"Test sent to {ok}/{len(members)} users via DM.", "green"))
             await client.close()
 
         loop.run_until_complete(_do())

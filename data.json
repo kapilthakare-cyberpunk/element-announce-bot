@@ -16,6 +16,23 @@
           "event_id": "$-_O_ABDq3UEVBKuaqoL7rOhirZv5-a0zftVG2M5_qaE"
         }
       ]
+    },
+    {
+      "id": 2,
+      "text": "Hello! This is a test DM announcement from the Element Announce Bot. Please react with ✅ to confirm you received it.",
+      "completed_by": [],
+      "sent_messages": [
+        {
+          "user_id": "@kapilsthakare:matrix.org",
+          "name": "Kapil Thakare",
+          "event_id": "$d5HDS55XMs-8uvU6tPAVIuK4d-dn7p7jFEKlN_CESxY"
+        },
+        {
+          "user_id": "@rohitejejurkar:matrix.org",
+          "name": "Rohit Jejurkar",
+          "event_id": "$MgoWWNlaju2I0gx7oe-yMts8tVMTjcYLjnKKaeTEPao"
+        }
+      ]
     }
   ]
 }

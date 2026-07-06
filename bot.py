@@ -45,6 +45,7 @@ from common import (
     save_config,
     save_data,
     get_member_name,
+    get_or_create_dm_room,
 )
 
 # ---------------------------------------------------------------------------
@@ -388,31 +389,35 @@ class BotCallbacks:
 
         for m in members:
             try:
-                resp = await send_text(self.client, room.room_id, args)
-                if hasattr(resp, "event_id"):
-                    sent_list.append({
-                        "user_id": m["user_id"],
-                        "name": m["name"],
-                        "event_id": resp.event_id,
-                    })
-                    log.info(f"Sent announcement to {m['name']}")
+                dm_room_id = await get_or_create_dm_room(self.client, m["user_id"])
+                if dm_room_id:
+                    resp = await send_text(self.client, dm_room_id, args)
+                    if hasattr(resp, "event_id"):
+                        sent_list.append({
+                            "user_id": m["user_id"],
+                            "name": m["name"],
+                            "event_id": resp.event_id,
+                        })
+                        log.info(f"Sent announcement to {m['name']} in DM {dm_room_id}")
             except Exception as e:
                 log.error(f"Failed to send to {m['name']}: {e}")
 
-        data["announcements"].append({
-            "id": ann_id,
-            "text": args,
-            "completed_by": [],
-            "sent_messages": sent_list,
-        })
-        save_data(data)
+        if sent_list:
+            data["announcements"].append({
+                "id": ann_id,
+                "text": args,
+                "completed_by": [],
+                "sent_messages": sent_list,
+            })
+            save_data(data)
 
-        await send_text(
-            self.client,
-            room.room_id,
-            f"Announcement #{ann_id} sent to {len(sent_list)}/{len(members)} members.\n"
-            f"React with ✅ to confirm engagement.",
-        )
+            await send_text(
+                self.client,
+                room.room_id,
+                f"Announcement #{ann_id} sent to DMs of {len(sent_list)}/{len(members)} members. Status will be tracked.",
+            )
+        else:
+            await send_text(self.client, room.room_id, "Failed to send announcement.")
 
     async def on_reaction(self, room, event):
         """Handle reaction events (✅ confirmations)."""

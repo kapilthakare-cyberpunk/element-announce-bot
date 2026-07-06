@@ -47,3 +47,35 @@ def get_member_name(config, user_id, default=None):
         if m["user_id"] == user_id:
             return m["name"]
     return default or user_id
+
+from nio import RoomPreset, RoomCreateResponse
+
+async def find_dm_room(client, target_user_id):
+    for room_id, room in client.rooms.items():
+        member_ids = list(room.users.keys())
+        if len(member_ids) == 2 and target_user_id in member_ids:
+            return room_id
+    return None
+
+async def get_or_create_dm_room(client, target_user_id):
+    dm_room = await find_dm_room(client, target_user_id)
+    if dm_room:
+        return dm_room
+        
+    initial_state = [
+        {
+            "type": "m.room.encryption",
+            "state_key": "",
+            "content": {"algorithm": "m.megolm.v1.aes-sha2"},
+        }
+    ]
+    resp = await client.room_create(
+        invite=[target_user_id],
+        is_direct=True,
+        preset=RoomPreset.trusted_private_chat,
+        initial_state=initial_state,
+    )
+    if isinstance(resp, RoomCreateResponse):
+        return resp.room_id
+    return None
+
