@@ -452,22 +452,47 @@ class AdminApp(ctk.CTk):
             for m in members:
                 try:
                     room = await get_or_create_dm_room(client, m["user_id"])
-                    if room:
-                        resp = await matrix_sync_and_send(client, room, text)
-                        if hasattr(resp, "event_id"):
-                            sent.append(
-                                {
-                                    "user_id": m["user_id"],
-                                    "name": m["name"],
-                                    "event_id": resp.event_id,
-                                }
-                            )
+                    if not room:
+                        self.after(
+                            0,
+                            lambda n=m["name"]: self._log(
+                                f"✗ No DM room: {n}", Colors.WARNING
+                            ),
+                        )
+                        continue
+
+                    # SAFETY: Verify room is a true DM (exactly 2 members, no name)
+                    room_obj = client.rooms.get(room)
+                    if room_obj:
+                        member_count = len(room_obj.users)
+                        room_name = getattr(room_obj, "name", None)
+                        if member_count != 2 or (room_name and room_name.strip()):
                             self.after(
                                 0,
-                                lambda n=m["name"]: self._log(
-                                    f"✓ Sent to {n}", Colors.SUCCESS
+                                lambda n=m["name"], rn=room_name or "unnamed", mc=member_count: (
+                                    self._log(
+                                        f"✗ SKIPPED group room for {n}: '{rn}' ({mc} members)",
+                                        Colors.DANGER,
+                                    )
                                 ),
                             )
+                            continue
+
+                    resp = await matrix_sync_and_send(client, room, text)
+                    if hasattr(resp, "event_id"):
+                        sent.append(
+                            {
+                                "user_id": m["user_id"],
+                                "name": m["name"],
+                                "event_id": resp.event_id,
+                            }
+                        )
+                        self.after(
+                            0,
+                            lambda n=m["name"]: self._log(
+                                f"✓ Sent to {n}", Colors.SUCCESS
+                            ),
+                        )
                 except Exception as e:
                     self.after(
                         0,
@@ -549,16 +574,41 @@ class AdminApp(ctk.CTk):
             for m in members:
                 try:
                     room = await get_or_create_dm_room(client, m["user_id"])
-                    if room:
-                        resp = await matrix_sync_and_send(client, room, text)
-                        if hasattr(resp, "event_id"):
-                            ok += 1
+                    if not room:
+                        self.after(
+                            0,
+                            lambda n=m["name"]: self._log(
+                                f"✗ No DM room: {n}", Colors.WARNING
+                            ),
+                        )
+                        continue
+
+                    # SAFETY: Verify room is a true DM (exactly 2 members, no name)
+                    room_obj = client.rooms.get(room)
+                    if room_obj:
+                        member_count = len(room_obj.users)
+                        room_name = getattr(room_obj, "name", None)
+                        if member_count != 2 or (room_name and room_name.strip()):
                             self.after(
                                 0,
-                                lambda n=m["name"]: self._log(
-                                    f"✓ Sent to {n}", Colors.SUCCESS
+                                lambda n=m["name"], rn=room_name or "unnamed", mc=member_count: (
+                                    self._log(
+                                        f"✗ SKIPPED group room for {n}: '{rn}' ({mc} members)",
+                                        Colors.DANGER,
+                                    )
                                 ),
                             )
+                            continue
+
+                    resp = await matrix_sync_and_send(client, room, text)
+                    if hasattr(resp, "event_id"):
+                        ok += 1
+                        self.after(
+                            0,
+                            lambda n=m["name"]: self._log(
+                                f"✓ Sent to {n}", Colors.SUCCESS
+                            ),
+                        )
                 except Exception as e:
                     self.after(
                         0,

@@ -432,17 +432,31 @@ class BotCallbacks:
         for m in members:
             try:
                 dm_room_id = await get_or_create_dm_room(self.client, m["user_id"])
-                if dm_room_id:
-                    resp = await send_text(self.client, dm_room_id, args)
-                    if hasattr(resp, "event_id"):
-                        sent_list.append(
-                            {
-                                "user_id": m["user_id"],
-                                "name": m["name"],
-                                "event_id": resp.event_id,
-                            }
+                if not dm_room_id:
+                    log.warning(f"No DM room found for {m['name']}")
+                    continue
+
+                # SAFETY: Verify room is a true DM (exactly 2 members, no name)
+                room_obj = self.client.rooms.get(dm_room_id)
+                if room_obj:
+                    member_count = len(room_obj.users)
+                    room_name = getattr(room_obj, "name", None)
+                    if member_count != 2 or (room_name and room_name.strip()):
+                        log.warning(
+                            f"SKIPPED group room for {m['name']}: '{room_name or 'unnamed'}' ({member_count} members)"
                         )
-                        log.info(f"Sent announcement to {m['name']} in DM {dm_room_id}")
+                        continue
+
+                resp = await send_text(self.client, dm_room_id, args)
+                if hasattr(resp, "event_id"):
+                    sent_list.append(
+                        {
+                            "user_id": m["user_id"],
+                            "name": m["name"],
+                            "event_id": resp.event_id,
+                        }
+                    )
+                    log.info(f"Sent announcement to {m['name']} in DM {dm_room_id}")
             except Exception as e:
                 log.error(f"Failed to send to {m['name']}: {e}")
 

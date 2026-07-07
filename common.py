@@ -71,38 +71,40 @@ from nio import RoomPreset, RoomCreateResponse
 async def find_dm_room(client, target_user_id):
     """Find an existing DM room with the target user.
 
-    Prioritizes:
-    1. Direct message rooms (is_direct=True)
-    2. Rooms with exactly 2 members
-    3. Any room where the target is a member
+    STRICT: Only returns rooms that are真正的 1-on-1 DMs:
+    - Exactly 2 members (self + target)
+    - No room name (named rooms are groups/channels)
+    - Never returns group rooms, channels, or spaces
     """
     direct_rooms = []
-    two_member_rooms = []
-    other_rooms = []
+    unnamed_two_member = []
 
     for room_id, room in client.rooms.items():
         if target_user_id not in room.users:
             continue
 
+        member_count = len(room.users)
+
+        # MUST be exactly 2 members (me + target)
+        if member_count != 2:
+            continue
+
+        # Skip named rooms — they are groups/channels
+        room_name = getattr(room, "name", None)
+        if room_name and room_name.strip():
+            continue
+
         # Check if room is marked as direct
         if hasattr(room, "is_direct") and room.is_direct:
             direct_rooms.append(room_id)
-            continue
-
-        # Check member count
-        member_count = len(room.users)
-        if member_count == 2:
-            two_member_rooms.append(room_id)
         else:
-            other_rooms.append(room_id)
+            unnamed_two_member.append(room_id)
 
-    # Return best match
+    # Prefer rooms marked as direct, then unnamed 2-member rooms
     if direct_rooms:
         return direct_rooms[0]
-    if two_member_rooms:
-        return two_member_rooms[0]
-    if other_rooms:
-        return other_rooms[0]
+    if unnamed_two_member:
+        return unnamed_two_member[0]
 
     return None
 
