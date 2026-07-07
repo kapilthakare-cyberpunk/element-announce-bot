@@ -19,6 +19,7 @@ ACCESS_TOKEN = os.getenv("ACCESS_TOKEN", "")
 ADMIN_ID = os.getenv("ADMIN_ID", "")
 ROOM_ID = os.getenv("ROOM_ID", "")
 
+
 def load_json(path, default):
     try:
         if path.exists():
@@ -27,20 +28,26 @@ def load_json(path, default):
         print(f"Error reading {path}: {e}")
     return default
 
+
 def save_json(path, data):
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
 
 def load_config():
     return load_json(CONFIG_FILE, {"members": [], "test_user_ids": []})
 
+
 def load_data():
     return load_json(DATA_FILE, {"announcements": []})
+
 
 def save_config(config):
     save_json(CONFIG_FILE, config)
 
+
 def save_data(data):
     save_json(DATA_FILE, data)
+
 
 def get_member_name(config, user_id, default=None):
     for m in config["members"]:
@@ -48,7 +55,9 @@ def get_member_name(config, user_id, default=None):
             return m["name"]
     return default or user_id
 
+
 from nio import RoomPreset, RoomCreateResponse
+
 
 async def find_dm_room(client, target_user_id):
     for room_id, room in client.rooms.items():
@@ -57,25 +66,18 @@ async def find_dm_room(client, target_user_id):
             return room_id
     return None
 
+
 async def get_or_create_dm_room(client, target_user_id):
     dm_room = await find_dm_room(client, target_user_id)
     if dm_room:
         return dm_room
-        
-    initial_state = [
-        {
-            "type": "m.room.encryption",
-            "state_key": "",
-            "content": {"algorithm": "m.megolm.v1.aes-sha2"},
-        }
-    ]
+
+    # Create DM room without encryption (E2EE disabled)
     resp = await client.room_create(
         invite=[target_user_id],
         is_direct=True,
         preset=RoomPreset.trusted_private_chat,
-        initial_state=initial_state,
     )
     if isinstance(resp, RoomCreateResponse):
         return resp.room_id
     return None
-

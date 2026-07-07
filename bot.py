@@ -71,10 +71,11 @@ DEVICE_NAME = "element-announce-bot"
 
 
 async def send_text(client, room_id, text):
-    """Send a plain text message to a room."""
+    """Send a plain text message to a room (no URL previews)."""
     content = {
         "msgtype": "m.text",
         "body": text,
+        "m.relates_to": {"fi.mau.dont_render": True},
     }
     resp = await client.room_send(
         room_id,
@@ -86,12 +87,13 @@ async def send_text(client, room_id, text):
 
 
 async def send_html(client, room_id, body, html):
-    """Send an HTML-formatted message to a room."""
+    """Send an HTML-formatted message to a room (no URL previews)."""
     content = {
         "msgtype": "m.text",
         "body": body,
         "format": "org.matrix.custom.html",
         "formatted_body": html,
+        "m.relates_to": {"fi.mau.dont_render": True},
     }
     resp = await client.room_send(
         room_id,

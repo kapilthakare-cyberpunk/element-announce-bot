@@ -97,7 +97,8 @@ def get_matrix_client():
 
 
 async def matrix_login(client):
-    """Login with saved credentials or fresh login."""
+    """Login with saved credentials, access token, or password."""
+    # 1. Try saved credentials first
     if CREDENTIALS_FILE.exists():
         try:
             creds = json.loads(CREDENTIALS_FILE.read_text())
@@ -108,31 +109,52 @@ async def matrix_login(client):
         except Exception:
             pass
 
-    resp = await client.login(PASSWORD, device_name=DEVICE_NAME)
-    if isinstance(resp, LoginError):
-        return False
-
-    CREDENTIALS_FILE.write_text(
-        json.dumps(
-            {
-                "user_id": client.user_id,
-                "access_token": client.access_token,
-                "device_id": client.device_id,
-            }
+    # 2. Try access token from .env
+    if ACCESS_TOKEN:
+        client.user_id = USER_ID
+        client.access_token = ACCESS_TOKEN
+        # Save for future use
+        CREDENTIALS_FILE.write_text(
+            json.dumps(
+                {
+                    "user_id": USER_ID,
+                    "access_token": ACCESS_TOKEN,
+                    "device_id": "web",
+                }
+            )
         )
-    )
+        return True
 
-    if client.should_upload_keys:
-        await client.keys_upload()
+    # 3. Try password login
+    if PASSWORD:
+        resp = await client.login(PASSWORD, device_name=DEVICE_NAME)
+        if isinstance(resp, LoginError):
+            return False
 
-    return True
+        CREDENTIALS_FILE.write_text(
+            json.dumps(
+                {
+                    "user_id": client.user_id,
+                    "access_token": client.access_token,
+                    "device_id": client.device_id,
+                }
+            )
+        )
+
+        if client.should_upload_keys:
+            await client.keys_upload()
+
+        return True
+
+    return False
 
 
 async def matrix_send(client, room_id, text):
-    """Send a text message to a Matrix room."""
+    """Send a text message to a Matrix room (no URL previews)."""
     content = {
         "msgtype": "m.text",
         "body": text,
+        "m.relates_to": {"fi.mau.dont_render": True},
     }
     resp = await client.room_send(
         room_id,
