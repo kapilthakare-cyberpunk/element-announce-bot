@@ -1,7 +1,7 @@
 """
-Admin GUI for Element Announce Bot — Polished Editorial Design.
+Admin GUI for Element Announce Bot — Professional Design.
 
-A CustomTkinter desktop application with a refined visual system.
+A CustomTkinter desktop application with clean typography and clear hierarchy.
 Shares config.json and data.json with bot.py.
 """
 
@@ -47,28 +47,21 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme(str(THEME_PATH))
 
 
-# Color palette
 class Colors:
-    # Primary
     TEAL = "#14B8A6"
     TEAL_DARK = "#0D9488"
-    TEAL_DEEPER = "#0F766E"
-
-    # Semantic
     SUCCESS = "#10B981"
     WARNING = "#F59E0B"
     DANGER = "#EF4444"
     DANGER_HOVER = "#DC2626"
     INFO = "#3B82F6"
-
-    # Neutral
     BG_DARK = "#0F1117"
     BG_CARD = "#1A1D23"
     BG_CARD_HOVER = "#22262E"
     BORDER = "#2D3139"
     TEXT_PRIMARY = "#F9FAFB"
-    TEXT_SECONDARY = "#9CA3AF"
-    TEXT_MUTED = "#6B7280"
+    TEXT_SECONDARY = "#D1D5DB"
+    TEXT_MUTED = "#9CA3AF"
 
 
 DEVICE_NAME = "element-announce-bot-gui"
@@ -80,25 +73,17 @@ DEVICE_NAME = "element-announce-bot-gui"
 
 
 def get_matrix_client():
-    """Create an async Matrix client."""
     client_config = AsyncClientConfig(
         max_limit_exceeded=0,
         max_timeouts=0,
         store_sync_tokens=True,
         encryption_enabled=False,
     )
-    client = AsyncClient(
-        HOMESERVER,
-        USER_ID,
-        store_path=STORE_PATH,
-        config=client_config,
-    )
-    return client
+    return AsyncClient(HOMESERVER, USER_ID, store_path=STORE_PATH, config=client_config)
 
 
 async def matrix_login(client):
     """Login with saved credentials, access token, or password."""
-    # 1. Try saved credentials first
     if CREDENTIALS_FILE.exists():
         try:
             creds = json.loads(CREDENTIALS_FILE.read_text())
@@ -109,11 +94,9 @@ async def matrix_login(client):
         except Exception:
             pass
 
-    # 2. Try access token from .env
     if ACCESS_TOKEN:
         client.user_id = USER_ID
         client.access_token = ACCESS_TOKEN
-        # Save for future use
         CREDENTIALS_FILE.write_text(
             json.dumps(
                 {
@@ -125,12 +108,10 @@ async def matrix_login(client):
         )
         return True
 
-    # 3. Try password login
     if PASSWORD:
         resp = await client.login(PASSWORD, device_name=DEVICE_NAME)
         if isinstance(resp, LoginError):
             return False
-
         CREDENTIALS_FILE.write_text(
             json.dumps(
                 {
@@ -140,40 +121,29 @@ async def matrix_login(client):
                 }
             )
         )
-
         if client.should_upload_keys:
             await client.keys_upload()
-
         return True
 
     return False
 
 
-async def matrix_send(client, room_id, text):
-    """Send a text message to a Matrix room (no URL previews)."""
+async def matrix_sync_and_send(client, room_id, text):
+    """Sync rooms then send a message (no URL previews)."""
     content = {
         "msgtype": "m.text",
         "body": text,
-        "m.relates_to": {"fi.mau.dont_render": True},
+        "fi.mau.dont_render": True,
     }
-    resp = await client.room_send(
-        room_id,
-        "m.room.message",
-        content,
-        ignore_unverified_devices=True,
+    return await client.room_send(
+        room_id, "m.room.message", content, ignore_unverified_devices=True
     )
-    return resp
 
 
 async def matrix_redact(client, room_id, event_id, reason="Retracted by admin"):
-    """Redact (delete) a message."""
-    resp = await client.room_redact(
-        room_id,
-        event_id,
-        reason,
-        ignore_unverified_devices=True,
+    return await client.room_redact(
+        room_id, event_id, reason, ignore_unverified_devices=True
     )
-    return resp
 
 
 # ===================================================================
@@ -182,35 +152,23 @@ async def matrix_redact(client, room_id, event_id, reason="Retracted by admin"):
 
 
 class AdminApp(ctk.CTk):
-    """Main admin panel window."""
-
     def __init__(self):
         super().__init__()
-
         self.title("Element Announce Bot")
-        self.geometry("1080x760")
+        self.geometry("1100x780")
         self.minsize(900, 650)
-
         self.matrix_ready = bool(USER_ID and (PASSWORD or ACCESS_TOKEN))
-
         self._build_ui()
         self._refresh_all()
 
-    # ------------------------------------------------------------------
-    # UI Build
-    # ------------------------------------------------------------------
-
     def _build_ui(self):
-        # -- Main container --
-        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
-        self.main_container.pack(fill="both", expand=True, padx=16, pady=16)
+        self.main = ctk.CTkFrame(self, fg_color="transparent")
+        self.main.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # -- Top branding bar --
         self._build_header()
 
-        # -- Tab view --
         self.tab = ctk.CTkTabview(
-            self.main_container,
+            self.main,
             corner_radius=12,
             segmented_button_fg_color=Colors.BG_CARD,
             segmented_button_selected_color=Colors.TEAL,
@@ -218,11 +176,9 @@ class AdminApp(ctk.CTk):
             segmented_button_unselected_color=Colors.BG_CARD,
             segmented_button_unselected_hover_color=Colors.BG_CARD_HOVER,
         )
-        self.tab.pack(fill="both", expand=True, pady=(12, 0))
+        self.tab.pack(fill="both", expand=True, pady=(16, 0))
 
-        # -- Bottom status bar --
-        self._build_status_bar()
-
+        self._build_footer()
         self._build_announce_tab()
         self._build_status_tab()
         self._build_members_tab()
@@ -230,170 +186,149 @@ class AdminApp(ctk.CTk):
         self._build_settings_tab()
 
     def _build_header(self):
-        header = ctk.CTkFrame(self.main_container, fg_color="transparent", height=60)
-        header.pack(fill="x", pady=(0, 4))
-        header.pack_propagate(False)
+        h = ctk.CTkFrame(self.main, fg_color="transparent", height=56)
+        h.pack(fill="x", pady=(0, 4))
+        h.pack_propagate(False)
 
-        # Brand icon + title
-        brand_frame = ctk.CTkFrame(header, fg_color="transparent")
-        brand_frame.pack(side="left", fill="y")
-
-        ctk.CTkLabel(
-            brand_frame,
-            text="⚡",
-            font=ctk.CTkFont(size=28),
-            text_color=Colors.TEAL,
-        ).pack(side="left", padx=(0, 8))
-
-        title_frame = ctk.CTkFrame(brand_frame, fg_color="transparent")
-        title_frame.pack(side="left", fill="y")
+        left = ctk.CTkFrame(h, fg_color="transparent")
+        left.pack(side="left", fill="y")
 
         ctk.CTkLabel(
-            title_frame,
+            left, text="⚡", font=ctk.CTkFont(size=26), text_color=Colors.TEAL
+        ).pack(side="left", padx=(0, 10))
+
+        title_f = ctk.CTkFrame(left, fg_color="transparent")
+        title_f.pack(side="left", fill="y")
+        ctk.CTkLabel(
+            title_f,
             text="Element Announce Bot",
             font=ctk.CTkFont(size=20, weight="bold"),
-            text_color=Colors.TEXT_PRIMARY,
         ).pack(anchor="w")
-
         ctk.CTkLabel(
-            title_frame,
+            title_f,
             text="Team broadcast & engagement tracking",
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_MUTED,
         ).pack(anchor="w")
 
-        # Status indicator
-        status_frame = ctk.CTkFrame(header, fg_color="transparent")
-        status_frame.pack(side="right", fill="y")
+        right = ctk.CTkFrame(h, fg_color="transparent")
+        right.pack(side="right", fill="y")
 
-        if self.matrix_ready:
-            dot_color = Colors.SUCCESS
-            status_text = "Connected"
-            status_sub = f"Admin: {ADMIN_ID.split(':')[0][1:]}" if ADMIN_ID else ""
-        else:
-            dot_color = Colors.DANGER
-            status_text = "Not Connected"
-            status_sub = "Check .env configuration"
+        dot = Colors.SUCCESS if self.matrix_ready else Colors.DANGER
+        txt = "Connected" if self.matrix_ready else "Not Connected"
+        sub = f"Admin: {ADMIN_ID.split(':')[0][1:]}" if ADMIN_ID else ""
 
-        ctk.CTkLabel(
-            status_frame,
-            text="●",
-            font=ctk.CTkFont(size=10),
-            text_color=dot_color,
-        ).pack(side="left", padx=(0, 4))
-
-        info_frame = ctk.CTkFrame(status_frame, fg_color="transparent")
-        info_frame.pack(side="left", fill="y")
-
-        ctk.CTkLabel(
-            info_frame,
-            text=status_text,
-            font=ctk.CTkFont(size=12, weight="bold"),
-            text_color=Colors.TEXT_PRIMARY,
-        ).pack(anchor="e")
-
-        ctk.CTkLabel(
-            info_frame,
-            text=status_sub,
-            font=ctk.CTkFont(size=10),
-            text_color=Colors.TEXT_MUTED,
-        ).pack(anchor="e")
-
-    def _build_status_bar(self):
-        self.status_bar = ctk.CTkFrame(
-            self.main_container,
-            corner_radius=8,
-            height=36,
-            fg_color=Colors.BG_CARD,
+        ctk.CTkLabel(right, text="●", font=ctk.CTkFont(size=10), text_color=dot).pack(
+            side="left", padx=(0, 6)
         )
-        self.status_bar.pack(fill="x", pady=(8, 0))
-        self.status_bar.pack_propagate(False)
+        info = ctk.CTkFrame(right, fg_color="transparent")
+        info.pack(side="left", fill="y")
+        ctk.CTkLabel(info, text=txt, font=ctk.CTkFont(size=12, weight="bold")).pack(
+            anchor="e"
+        )
+        ctk.CTkLabel(
+            info, text=sub, font=ctk.CTkFont(size=10), text_color=Colors.TEXT_MUTED
+        ).pack(anchor="e")
 
-        self.status_bar_icon = ctk.CTkLabel(
-            self.status_bar,
+    def _build_footer(self):
+        self.footer = ctk.CTkFrame(
+            self.main, corner_radius=8, height=36, fg_color=Colors.BG_CARD
+        )
+        self.footer.pack(fill="x", pady=(8, 0))
+        self.footer.pack_propagate(False)
+        self.footer_icon = ctk.CTkLabel(
+            self.footer,
             text="ℹ",
             font=ctk.CTkFont(size=12),
             text_color=Colors.INFO,
             width=24,
         )
-        self.status_bar_icon.pack(side="left", padx=(12, 0))
-
-        self.status_bar_label = ctk.CTkLabel(
-            self.status_bar,
+        self.footer_icon.pack(side="left", padx=(12, 0))
+        self.footer_label = ctk.CTkLabel(
+            self.footer,
             text="Ready",
             anchor="w",
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_SECONDARY,
         )
-        self.status_bar_label.pack(side="left", padx=(4, 12), fill="y")
+        self.footer_label.pack(side="left", padx=(4, 12), fill="y")
+
+    # ---- helpers ----
+
+    def _msg(self, text, color=None):
+        self.footer_label.configure(
+            text=text, text_color=color or Colors.TEXT_SECONDARY
+        )
+        icons = {
+            Colors.SUCCESS: "✓",
+            Colors.WARNING: "⚠",
+            Colors.DANGER: "✗",
+            Colors.INFO: "ℹ",
+        }
+        self.footer_icon.configure(
+            text=icons.get(color, "ℹ"), text_color=color or Colors.INFO
+        )
+
+    def _section(self, parent, title):
+        f = ctk.CTkFrame(parent, fg_color="transparent")
+        f.pack(fill="x", padx=16, pady=(16, 8))
+        ctk.CTkLabel(
+            f,
+            text=title,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=Colors.TEAL,
+        ).pack(anchor="w")
+        return f
+
+    def _card(self, parent, **kw):
+        return ctk.CTkFrame(parent, corner_radius=10, fg_color=Colors.BG_CARD, **kw)
 
     # ================================
-    #  TAB 1 - Announce
+    #  TAB 1 — Announce
     # ================================
 
     def _build_announce_tab(self):
         tab = self.tab.add("  Announce  ")
 
-        # -- Section: Compose --
-        compose_header = ctk.CTkFrame(tab, fg_color="transparent")
-        compose_header.pack(fill="x", padx=16, pady=(16, 8))
-
+        self._section(tab, "COMPOSE ANNOUNCEMENT")
         ctk.CTkLabel(
-            compose_header,
-            text="COMPOSE ANNOUNCEMENT",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            compose_header,
-            text="Write your message below. It will be sent as a direct message to each team member.",
+            tab,
+            text="Write your message. It will be sent as a DM to each team member.",
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_MUTED,
-        ).pack(anchor="w", pady=(2, 0))
+        ).pack(anchor="w", padx=16, pady=(0, 8))
 
-        # -- Text editor with border --
-        editor_container = ctk.CTkFrame(
-            tab,
-            corner_radius=10,
-            border_width=1,
-            border_color=Colors.BORDER,
-            fg_color=Colors.BG_CARD,
-        )
-        editor_container.pack(fill="both", expand=True, padx=16, pady=(0, 12))
-
+        editor = self._card(tab)
+        editor.pack(fill="both", expand=True, padx=16, pady=(0, 12))
         self.announce_text = ctk.CTkTextbox(
-            editor_container,
-            height=180,
+            editor,
+            height=160,
             wrap="word",
             corner_radius=10,
-            border_width=0,
             fg_color=Colors.BG_CARD,
             text_color=Colors.TEXT_PRIMARY,
             font=ctk.CTkFont(size=13),
         )
         self.announce_text.pack(fill="both", expand=True, padx=2, pady=2)
 
-        # -- Action buttons --
-        btn_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=16, pady=(0, 12))
+        btns = ctk.CTkFrame(tab, fg_color="transparent")
+        btns.pack(fill="x", padx=16, pady=(0, 12))
 
         self.send_all_btn = ctk.CTkButton(
-            btn_frame,
-            text="  Send to All Members  ",
-            command=lambda: self._do_send_all(),
+            btns,
+            text="Send to All Members",
             height=40,
             corner_radius=8,
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color=Colors.TEAL,
             hover_color=Colors.TEAL_DARK,
+            command=self._do_send_all,
         )
         self.send_all_btn.pack(side="left", padx=(0, 10))
 
         self.send_test_btn = ctk.CTkButton(
-            btn_frame,
-            text="  Send to Selected  ",
-            command=lambda: self._do_send_test(),
+            btns,
+            text="Send to Selected",
             height=40,
             corner_radius=8,
             font=ctk.CTkFont(size=13),
@@ -402,82 +337,44 @@ class AdminApp(ctk.CTk):
             border_color=Colors.TEAL,
             text_color=Colors.TEAL,
             hover_color=Colors.BG_CARD_HOVER,
+            command=self._do_send_test,
         )
         self.send_test_btn.pack(side="left")
 
-        # -- Test recipients section --
-        recipients_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        recipients_frame.pack(fill="x", padx=16, pady=(0, 8))
-
-        ctk.CTkLabel(
-            recipients_frame,
-            text="SELECT RECIPIENTS",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w", pady=(0, 6))
-
+        self._section(tab, "SELECT RECIPIENTS")
         self.test_check_frame = ctk.CTkScrollableFrame(
-            recipients_frame,
-            height=100,
-            corner_radius=8,
-            fg_color=Colors.BG_CARD,
+            tab, height=90, corner_radius=8, fg_color=Colors.BG_CARD
         )
-        self.test_check_frame.pack(fill="x")
+        self.test_check_frame.pack(fill="x", padx=16, pady=(0, 8))
         self.test_checkvars = {}
         self._refresh_test_checkboxes()
 
-        # -- Send log --
-        log_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        log_frame.pack(fill="x", padx=16, pady=(8, 16))
-
-        ctk.CTkLabel(
-            log_frame,
-            text="ACTIVITY LOG",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w", pady=(0, 6))
-
+        self._section(tab, "ACTIVITY LOG")
         self.send_log = ctk.CTkScrollableFrame(
-            log_frame,
-            height=120,
-            corner_radius=8,
-            fg_color=Colors.BG_CARD,
+            tab, height=110, corner_radius=8, fg_color=Colors.BG_CARD
         )
-        self.send_log.pack(fill="x")
+        self.send_log.pack(fill="x", padx=16, pady=(0, 16))
 
     def _do_send_all(self):
         text = self.announce_text.get("1.0", "end-1c").strip()
         if not text:
-            self._log_send("Cannot send — announcement text is empty.", Colors.WARNING)
+            self._log("Cannot send — message is empty.", Colors.WARNING)
             return
-        config = load_config()
-        member_count = len(config.get("members", []))
-        self._show_preview(
-            text,
-            member_count,
-            "Send to All Members",
-            lambda: self._confirm_send_all(text),
-        )
+        n = len(load_config().get("members", []))
+        self._preview(text, n, "Send to All Members", lambda: self._run_send_all(text))
 
-    def _confirm_send_all(self, text):
+    def _run_send_all(self, text):
         self.send_all_btn.configure(state="disabled")
         self.send_test_btn.configure(state="disabled")
-        self._clear_send_log()
+        self._clear_log()
         threading.Thread(
-            target=self._send_all_worker, args=(text,), daemon=True
+            target=self._worker_send_all, args=(text,), daemon=True
         ).start()
 
-    def _send_all_worker(self, text):
-        config = load_config()
-        members = config["members"]
-
+    def _worker_send_all(self, text):
+        members = load_config().get("members", [])
         if not members:
-            self.after(
-                0,
-                lambda: self._log_send(
-                    "No members in config. Add some first.", Colors.WARNING
-                ),
-            )
+            self.after(0, lambda: self._log("No members in config.", Colors.WARNING))
             self.after(0, lambda: self.send_all_btn.configure(state="normal"))
             self.after(0, lambda: self.send_test_btn.configure(state="normal"))
             return
@@ -485,27 +382,25 @@ class AdminApp(ctk.CTk):
         loop = asyncio.new_event_loop()
         client = get_matrix_client()
 
-        async def _do():
+        async def run():
             if not await matrix_login(client):
                 self.after(
-                    0,
-                    lambda: self._log_send(
-                        "Matrix login failed. Check .env.", Colors.DANGER
-                    ),
+                    0, lambda: self._log("Login failed. Check .env.", Colors.DANGER)
                 )
                 return
+            await client.sync(timeout=5000, full_state=True)
 
             data = load_data()
             ann_id = len(data["announcements"]) + 1
-            sent_list = []
+            sent = []
 
             for m in members:
                 try:
-                    dm_room_id = await get_or_create_dm_room(client, m["user_id"])
-                    if dm_room_id:
-                        resp = await matrix_send(client, dm_room_id, text)
+                    room = await get_or_create_dm_room(client, m["user_id"])
+                    if room:
+                        resp = await matrix_sync_and_send(client, room, text)
                         if hasattr(resp, "event_id"):
-                            sent_list.append(
+                            sent.append(
                                 {
                                     "user_id": m["user_id"],
                                     "name": m["name"],
@@ -514,94 +409,74 @@ class AdminApp(ctk.CTk):
                             )
                             self.after(
                                 0,
-                                lambda n=m["name"]: self._log_send(
+                                lambda n=m["name"]: self._log(
                                     f"✓ Sent to {n}", Colors.SUCCESS
                                 ),
                             )
                 except Exception as e:
                     self.after(
                         0,
-                        lambda n=m["name"]: self._log_send(
-                            f"✗ Failed: {n} — {e}", Colors.DANGER
+                        lambda n=m["name"], err=e: self._log(
+                            f"✗ Failed: {n} — {err}", Colors.DANGER
                         ),
                     )
 
-            if sent_list:
+            if sent:
                 data["announcements"].append(
                     {
                         "id": ann_id,
                         "text": text,
                         "completed_by": [],
-                        "sent_messages": sent_list,
+                        "sent_messages": sent,
                     }
                 )
                 save_data(data)
                 self.after(
                     0,
-                    lambda: self._log_send(
-                        f"Announcement #{ann_id} delivered to {len(sent_list)}/{len(members)} members",
+                    lambda: self._log(
+                        f"Announcement #{ann_id} → {len(sent)}/{len(members)} members",
                         Colors.SUCCESS,
                     ),
                 )
             else:
-                self.after(
-                    0,
-                    lambda: self._log_send(
-                        "Failed to send announcement", Colors.DANGER
-                    ),
-                )
+                self.after(0, lambda: self._log("Failed to send.", Colors.DANGER))
             await client.close()
 
-        loop.run_until_complete(_do())
+        loop.run_until_complete(run())
         loop.close()
-
         self.after(0, lambda: self.send_all_btn.configure(state="normal"))
         self.after(0, lambda: self.send_test_btn.configure(state="normal"))
 
     def _do_send_test(self):
         text = self.announce_text.get("1.0", "end-1c").strip()
         if not text:
-            self._log_send("Cannot send — announcement text is empty.", Colors.WARNING)
+            self._log("Cannot send — message is empty.", Colors.WARNING)
             return
-
-        checked_ids = [uid for uid, var in self.test_checkvars.items() if var.get()]
-        if not checked_ids:
-            self._log_send(
-                "No recipients selected. Check at least one member above.",
-                Colors.WARNING,
-            )
+        ids = [u for u, v in self.test_checkvars.items() if v.get()]
+        if not ids:
+            self._log("No recipients selected.", Colors.WARNING)
             return
-
-        config = load_config()
-        checked_names = [
-            m["name"] for m in config["members"] if m["user_id"] in checked_ids
-        ]
-        self._show_preview(
+        cfg = load_config()
+        names = [m["name"] for m in cfg["members"] if m["user_id"] in ids]
+        self._preview(
             text,
-            len(checked_names),
-            f"Send to {len(checked_names)} Selected",
-            lambda: self._confirm_send_test(text, checked_ids),
+            len(names),
+            f"Send to {len(names)} Selected",
+            lambda: self._run_send_test(text, ids),
         )
 
-    def _confirm_send_test(self, text, checked_ids):
+    def _run_send_test(self, text, ids):
         self.send_all_btn.configure(state="disabled")
         self.send_test_btn.configure(state="disabled")
-        self._clear_send_log()
+        self._clear_log()
         threading.Thread(
-            target=self._send_test_worker, args=(text, checked_ids), daemon=True
+            target=self._worker_send_test, args=(text, ids), daemon=True
         ).start()
 
-    def _send_test_worker(self, text, test_ids):
-        config = load_config()
-        members = [m for m in config["members"] if m["user_id"] in test_ids]
-
+    def _worker_send_test(self, text, ids):
+        members = [m for m in load_config().get("members", []) if m["user_id"] in ids]
         if not members:
-            self.after(
-                0,
-                lambda: self._log_send(
-                    "None of the checked IDs match registered members.", Colors.WARNING
-                ),
-            )
+            self.after(0, lambda: self._log("No matching members.", Colors.WARNING))
             self.after(0, lambda: self.send_all_btn.configure(state="normal"))
             self.after(0, lambda: self.send_test_btn.configure(state="normal"))
             return
@@ -609,49 +484,44 @@ class AdminApp(ctk.CTk):
         loop = asyncio.new_event_loop()
         client = get_matrix_client()
 
-        async def _do():
+        async def run():
             if not await matrix_login(client):
-                self.after(
-                    0,
-                    lambda: self._log_send(
-                        "Matrix login failed. Check .env.", Colors.DANGER
-                    ),
-                )
+                self.after(0, lambda: self._log("Login failed.", Colors.DANGER))
                 return
+            await client.sync(timeout=5000, full_state=True)
 
             ok = 0
             for m in members:
                 try:
-                    dm_room_id = await get_or_create_dm_room(client, m["user_id"])
-                    if dm_room_id:
-                        resp = await matrix_send(client, dm_room_id, text)
+                    room = await get_or_create_dm_room(client, m["user_id"])
+                    if room:
+                        resp = await matrix_sync_and_send(client, room, text)
                         if hasattr(resp, "event_id"):
                             ok += 1
                             self.after(
                                 0,
-                                lambda n=m["name"]: self._log_send(
+                                lambda n=m["name"]: self._log(
                                     f"✓ Sent to {n}", Colors.SUCCESS
                                 ),
                             )
                 except Exception as e:
                     self.after(
                         0,
-                        lambda n=m["name"]: self._log_send(
-                            f"✗ Failed: {n} — {e}", Colors.DANGER
+                        lambda n=m["name"], err=e: self._log(
+                            f"✗ Failed: {n} — {err}", Colors.DANGER
                         ),
                     )
 
             self.after(
                 0,
-                lambda: self._log_send(
+                lambda: self._log(
                     f"Test sent to {ok}/{len(members)} members", Colors.SUCCESS
                 ),
             )
             await client.close()
 
-        loop.run_until_complete(_do())
+        loop.run_until_complete(run())
         loop.close()
-
         self.after(0, lambda: self.send_all_btn.configure(state="normal"))
         self.after(0, lambda: self.send_test_btn.configure(state="normal"))
 
@@ -659,115 +529,67 @@ class AdminApp(ctk.CTk):
         for w in self.test_check_frame.winfo_children():
             w.destroy()
         self.test_checkvars.clear()
-
-        config = load_config()
-        for m in config["members"]:
+        for m in load_config().get("members", []):
             var = ctk.BooleanVar(value=False)
             self.test_checkvars[m["user_id"]] = var
-            cb = ctk.CTkCheckBox(
+            ctk.CTkCheckBox(
                 self.test_check_frame,
-                text=f"{m['name']}",
+                text=m["name"],
                 variable=var,
                 font=ctk.CTkFont(size=12),
                 text_color=Colors.TEXT_PRIMARY,
-            )
-            cb.pack(anchor="w", padx=8, pady=2)
+            ).pack(anchor="w", padx=8, pady=2)
 
-    # ---- Send log helpers ----
-
-    def _clear_send_log(self):
+    def _clear_log(self):
         for w in self.send_log.winfo_children():
             w.destroy()
 
-    def _log_send(self, text, color=None):
-        lbl = ctk.CTkLabel(
+    def _log(self, text, color=None):
+        ctk.CTkLabel(
             self.send_log,
             text=text,
             anchor="w",
             justify="left",
             font=ctk.CTkFont(size=11),
-        )
-        if color:
-            lbl.configure(text_color=color)
-        else:
-            lbl.configure(text_color=Colors.TEXT_SECONDARY)
-        lbl.pack(fill="x", padx=8, pady=2)
+            text_color=color or Colors.TEXT_SECONDARY,
+        ).pack(fill="x", padx=8, pady=2)
 
-    def _status_bar_msg(self, text, color=None):
-        self.status_bar_label.configure(text=text)
-        if color:
-            self.status_bar_label.configure(text_color=color)
-            icons = {
-                Colors.SUCCESS: "✓",
-                Colors.WARNING: "⚠",
-                Colors.DANGER: "✗",
-                Colors.INFO: "ℹ",
-            }
-            self.status_bar_icon.configure(text=icons.get(color, "ℹ"), text_color=color)
-
-    def _show_preview(self, text, recipient_count, button_label, on_confirm):
+    def _preview(self, text, count, btn_label, on_confirm):
         win = ctk.CTkToplevel(self)
         win.title("Preview")
-        win.geometry("560x520")
+        win.geometry("540x500")
         win.transient(self)
         win.grab_set()
         win.configure(fg_color=Colors.BG_DARK)
 
-        # Header
-        header = ctk.CTkFrame(win, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=(20, 12))
-
+        self._section(win, "MESSAGE PREVIEW")
         ctk.CTkLabel(
-            header,
-            text="MESSAGE PREVIEW",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            header,
-            text=f"This message will be sent to {recipient_count} member(s) via DM",
+            win,
+            text=f"Will be sent to {count} member(s) via DM",
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_MUTED,
-        ).pack(anchor="w", pady=(2, 0))
+        ).pack(anchor="w", padx=16, pady=(0, 8))
 
-        # Preview box
-        preview_container = ctk.CTkFrame(
-            win,
-            corner_radius=10,
-            border_width=1,
-            border_color=Colors.BORDER,
-            fg_color=Colors.BG_CARD,
-        )
-        preview_container.pack(fill="both", expand=True, padx=20, pady=(0, 16))
-
-        preview = ctk.CTkTextbox(
-            preview_container,
+        box = self._card(win)
+        box.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        tb = ctk.CTkTextbox(
+            box,
             wrap="word",
-            corner_radius=10,
-            border_width=0,
             fg_color=Colors.BG_CARD,
             text_color=Colors.TEXT_PRIMARY,
             font=ctk.CTkFont(size=13),
         )
-        preview.pack(fill="both", expand=True, padx=2, pady=2)
-        preview.insert("1.0", text)
-        preview.configure(state="disabled")
+        tb.pack(fill="both", expand=True, padx=2, pady=2)
+        tb.insert("1.0", text)
+        tb.configure(state="disabled")
 
-        # Buttons
-        btn_frame = ctk.CTkFrame(win, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=20, pady=(0, 20))
-
-        def confirm():
-            win.destroy()
-            on_confirm()
-
+        bf = ctk.CTkFrame(win, fg_color="transparent")
+        bf.pack(fill="x", padx=16, pady=(0, 16))
         ctk.CTkButton(
-            btn_frame,
+            bf,
             text="Cancel",
-            width=120,
-            height=38,
-            corner_radius=8,
+            width=110,
+            height=36,
             fg_color="transparent",
             border_width=2,
             border_color=Colors.BORDER,
@@ -775,80 +597,49 @@ class AdminApp(ctk.CTk):
             hover_color=Colors.BG_CARD_HOVER,
             command=win.destroy,
         ).pack(side="left")
-
         ctk.CTkButton(
-            btn_frame,
-            text=button_label,
-            width=220,
-            height=38,
-            corner_radius=8,
+            bf,
+            text=btn_label,
+            width=200,
+            height=36,
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color=Colors.TEAL,
             hover_color=Colors.TEAL_DARK,
-            command=confirm,
+            command=lambda: (win.destroy(), on_confirm()),
         ).pack(side="right")
 
     # ================================
-    #  TAB 2 - Status
+    #  TAB 2 — Status
     # ================================
 
     def _build_status_tab(self):
         tab = self.tab.add("  Status  ")
 
-        # -- Section header --
-        header = ctk.CTkFrame(tab, fg_color="transparent")
-        header.pack(fill="x", padx=16, pady=(16, 8))
+        self.status_hdr = self._section(tab, "LATEST ANNOUNCEMENT")
 
-        self.status_header = ctk.CTkLabel(
-            header,
-            text="LATEST ANNOUNCEMENT",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        )
-        self.status_header.pack(anchor="w")
-
-        # -- Status content --
         self.status_frame = ctk.CTkScrollableFrame(
-            tab,
-            height=280,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
+            tab, height=260, corner_radius=10, fg_color=Colors.BG_CARD
         )
         self.status_frame.pack(fill="both", expand=True, padx=16, pady=(0, 12))
 
-        # -- Action row --
-        action_row = ctk.CTkFrame(tab, fg_color="transparent")
-        action_row.pack(fill="x", padx=16, pady=(0, 12))
-
         ctk.CTkButton(
-            action_row,
-            text="  Refresh  ",
-            command=self._refresh_status,
-            width=120,
-            height=36,
+            tab,
+            text="Refresh",
+            width=110,
+            height=34,
             corner_radius=8,
             fg_color=Colors.TEAL,
             hover_color=Colors.TEAL_DARK,
-        ).pack(side="left")
+            command=self._refresh_status,
+        ).pack(anchor="w", padx=16, pady=(0, 12))
 
-        # -- Past announcements --
-        past_header = ctk.CTkFrame(tab, fg_color="transparent")
-        past_header.pack(fill="x", padx=16, pady=(0, 6))
-
-        ctk.CTkLabel(
-            past_header,
-            text="ANNOUNCEMENT HISTORY",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w")
-
-        past_row = ctk.CTkFrame(tab, fg_color="transparent")
-        past_row.pack(fill="x", padx=16, pady=(0, 16))
-
+        self._section(tab, "ANNOUNCEMENT HISTORY")
+        pr = ctk.CTkFrame(tab, fg_color="transparent")
+        pr.pack(fill="x", padx=16, pady=(0, 16))
         self.past_menu = ctk.CTkOptionMenu(
-            past_row,
-            width=350,
-            height=36,
+            pr,
+            width=340,
+            height=34,
             corner_radius=8,
             dynamic_resizing=False,
             fg_color=Colors.BG_CARD,
@@ -856,53 +647,47 @@ class AdminApp(ctk.CTk):
             button_hover_color=Colors.TEXT_MUTED,
         )
         self.past_menu.pack(side="left", padx=(0, 10))
-
         ctk.CTkButton(
-            past_row,
-            text="  Retract  ",
-            command=self._do_retract,
-            width=120,
-            height=36,
+            pr,
+            text="Retract",
+            width=100,
+            height=34,
             corner_radius=8,
             fg_color=Colors.DANGER,
             hover_color=Colors.DANGER_HOVER,
+            command=self._do_retract,
         ).pack(side="left")
 
     def _refresh_status(self):
         config = load_config()
         data = load_data()
-
         for w in self.status_frame.winfo_children():
             w.destroy()
 
         if not data["announcements"]:
-            self.status_header.configure(text="NO ANNOUNCEMENTS YET")
-            empty_frame = ctk.CTkFrame(self.status_frame, fg_color="transparent")
-            empty_frame.pack(fill="both", expand=True)
+            self.status_hdr.winfo_children()[0].configure(text="NO ANNOUNCEMENTS YET")
             ctk.CTkLabel(
-                empty_frame,
-                text="No announcements have been sent yet.",
+                self.status_frame,
+                text="No announcements sent yet.",
                 font=ctk.CTkFont(size=12),
                 text_color=Colors.TEXT_MUTED,
             ).pack(pady=40)
-            self.past_menu.configure(values=["(no announcements)"])
-            self.past_menu.set("(no announcements)")
+            self.past_menu.configure(values=["(none)"])
+            self.past_menu.set("(none)")
             return
 
         latest = data["announcements"][-1]
-        self.status_header.configure(text=f"ANNOUNCEMENT #{latest['id']}")
+        self.status_hdr.winfo_children()[0].configure(
+            text=f"ANNOUNCEMENT #{latest['id']}"
+        )
         completed = set(latest.get("completed_by", []))
 
-        # Announcement text preview
-        text_preview = ctk.CTkFrame(
-            self.status_frame,
-            corner_radius=8,
-            fg_color=Colors.BG_CARD_HOVER,
+        prev = ctk.CTkFrame(
+            self.status_frame, corner_radius=8, fg_color=Colors.BG_CARD_HOVER
         )
-        text_preview.pack(fill="x", padx=8, pady=(8, 12))
-
+        prev.pack(fill="x", padx=8, pady=(8, 12))
         ctk.CTkLabel(
-            text_preview,
+            prev,
             text=latest["text"][:200] + ("..." if len(latest["text"]) > 200 else ""),
             font=ctk.CTkFont(size=12),
             text_color=Colors.TEXT_PRIMARY,
@@ -910,88 +695,72 @@ class AdminApp(ctk.CTk):
             justify="left",
         ).pack(padx=12, pady=10, anchor="w")
 
-        # Member status list
-        for m in config["members"]:
-            is_done = m["user_id"] in completed
+        for m in config.get("members", []):
+            done = m["user_id"] in completed
             row = ctk.CTkFrame(
                 self.status_frame,
                 corner_radius=6,
-                fg_color=Colors.BG_CARD_HOVER if is_done else "transparent",
+                fg_color=Colors.BG_CARD_HOVER if done else "transparent",
             )
             row.pack(fill="x", padx=8, pady=1)
-
-            icon = "✓" if is_done else "○"
-            icon_color = Colors.SUCCESS if is_done else Colors.TEXT_MUTED
-
+            icon_color = Colors.SUCCESS if done else Colors.TEXT_MUTED
             ctk.CTkLabel(
                 row,
-                text=icon,
+                text="✓" if done else "○",
                 font=ctk.CTkFont(size=12, weight="bold"),
                 text_color=icon_color,
                 width=24,
             ).pack(side="left", padx=(10, 4), pady=4)
-
             ctk.CTkLabel(
                 row,
                 text=m["name"],
                 anchor="w",
                 font=ctk.CTkFont(size=12),
-                text_color=Colors.TEXT_PRIMARY if is_done else Colors.TEXT_SECONDARY,
-            ).pack(side="left", padx=(0, 8), pady=4)
+                text_color=Colors.TEXT_PRIMARY if done else Colors.TEXT_SECONDARY,
+            ).pack(side="left", pady=4)
 
-        # Summary
-        done = len(completed)
-        total = len(config["members"])
-        summary_frame = ctk.CTkFrame(self.status_frame, fg_color="transparent")
-        summary_frame.pack(fill="x", padx=8, pady=(12, 8))
-
+        done_n = len(completed)
+        total = len(config.get("members", []))
+        sf = ctk.CTkFrame(self.status_frame, fg_color="transparent")
+        sf.pack(fill="x", padx=8, pady=(12, 8))
         ctk.CTkLabel(
-            summary_frame,
-            text=f"{done}/{total} completed",
+            sf,
+            text=f"{done_n}/{total} completed",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=Colors.TEAL,
         ).pack(anchor="w", padx=4)
-
-        # Progress bar
-        progress = ctk.CTkProgressBar(
-            summary_frame,
+        pb = ctk.CTkProgressBar(
+            sf,
             width=400,
             height=8,
             corner_radius=4,
             fg_color=Colors.BORDER,
             progress_color=Colors.TEAL,
         )
-        progress.pack(anchor="w", padx=4, pady=(6, 0))
-        progress.set(done / total if total > 0 else 0)
+        pb.pack(anchor="w", padx=4, pady=(6, 0))
+        pb.set(done_n / total if total else 0)
 
-        # Past announcements menu
-        choices = [
-            f"#{a['id']} — {a['text'][:60].strip()}..." for a in data["announcements"]
-        ]
+        choices = [f"#{a['id']} — {a['text'][:60]}..." for a in data["announcements"]]
         self.past_menu.configure(values=choices)
         self.past_menu.set(choices[-1])
 
     def _do_retract(self):
-        selection = self.past_menu.get()
-        if not selection or selection.startswith("(no"):
+        s = self.past_menu.get()
+        if not s or s.startswith("(none)"):
             return
-        ann_id = int(selection.split("—")[0].strip().lstrip("#"))
-        self._run_retract(ann_id)
-
-    def _run_retract(self, ann_id):
+        ann_id = int(s.split("—")[0].strip().lstrip("#"))
         threading.Thread(
-            target=self._retract_worker, args=(ann_id,), daemon=True
+            target=self._worker_retract, args=(ann_id,), daemon=True
         ).start()
 
-    def _retract_worker(self, ann_id):
+    def _worker_retract(self, ann_id):
         data = load_data()
         target = next((a for a in data["announcements"] if a["id"] == ann_id), None)
         if not target or not target.get("sent_messages"):
             self.after(
                 0,
-                lambda: self._status_bar_msg(
-                    f"Announcement #{ann_id} has no retractable messages.",
-                    Colors.WARNING,
+                lambda: self._msg(
+                    f"#{ann_id} has no retractable messages.", Colors.WARNING
                 ),
             )
             return
@@ -999,124 +768,92 @@ class AdminApp(ctk.CTk):
         loop = asyncio.new_event_loop()
         client = get_matrix_client()
 
-        async def _do():
+        async def run():
             if not await matrix_login(client):
-                self.after(
-                    0,
-                    lambda: self._status_bar_msg("Matrix login failed.", Colors.DANGER),
-                )
+                self.after(0, lambda: self._msg("Login failed.", Colors.DANGER))
                 return
-
             deleted = 0
-            total = len(target["sent_messages"])
             for entry in target["sent_messages"]:
                 try:
                     await matrix_redact(client, ROOM_ID, entry["event_id"])
                     deleted += 1
                 except Exception:
                     pass
-
-            result = f"Retracted {deleted}/{total} messages for announcement #{ann_id}."
-            self.after(0, lambda: self._refresh_status())
+            self.after(0, self._refresh_status)
             self.after(
                 0,
-                lambda: self._status_bar_msg(
-                    result, Colors.SUCCESS if deleted else Colors.WARNING
+                lambda: self._msg(
+                    f"Retracted {deleted}/{len(target['sent_messages'])} for #{ann_id}.",
+                    Colors.SUCCESS if deleted else Colors.WARNING,
                 ),
             )
             await client.close()
 
-        loop.run_until_complete(_do())
+        loop.run_until_complete(run())
         loop.close()
 
     # ================================
-    #  TAB 3 - Members
+    #  TAB 3 — Members
     # ================================
 
     def _build_members_tab(self):
         tab = self.tab.add("  Members  ")
 
-        # -- Section: Add member --
-        add_header = ctk.CTkFrame(tab, fg_color="transparent")
-        add_header.pack(fill="x", padx=16, pady=(16, 8))
+        self._section(tab, "ADD MEMBER")
+        add_card = self._card(tab)
+        add_card.pack(fill="x", padx=16, pady=(0, 12))
+
+        row = ctk.CTkFrame(add_card, fg_color="transparent")
+        row.pack(fill="x", padx=12, pady=10)
 
         ctk.CTkLabel(
-            add_header,
-            text="ADD MEMBER",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w")
-
-        add_row = ctk.CTkFrame(
-            tab,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
-        )
-        add_row.pack(fill="x", padx=16, pady=(0, 12))
-
-        ctk.CTkLabel(
-            add_row,
-            text="User ID",
+            row,
+            text="User ID:",
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_MUTED,
-        ).pack(anchor="w", padx=12, pady=(8, 2))
-
-        self.add_id_entry = ctk.CTkEntry(
-            add_row,
-            width=280,
-            height=36,
+        ).pack(side="left")
+        self.add_id = ctk.CTkEntry(
+            row,
+            width=240,
+            height=34,
             corner_radius=8,
             placeholder_text="@user:matrix.org",
-            placeholder_text_color=Colors.TEXT_MUTED,
         )
-        self.add_id_entry.pack(side="left", padx=(12, 16), pady=(0, 10))
+        self.add_id.pack(side="left", padx=(6, 16))
 
         ctk.CTkLabel(
-            add_row,
-            text="Display Name",
-            font=ctk.CTkFont(size=11),
-            text_color=Colors.TEXT_MUTED,
-        ).pack(anchor="w", padx=12, pady=(8, 2))
-
-        self.add_name_entry = ctk.CTkEntry(
-            add_row,
-            width=220,
-            height=36,
-            corner_radius=8,
-            placeholder_text="Full name",
-            placeholder_text_color=Colors.TEXT_MUTED,
+            row, text="Name:", font=ctk.CTkFont(size=11), text_color=Colors.TEXT_MUTED
+        ).pack(side="left")
+        self.add_name = ctk.CTkEntry(
+            row, width=180, height=34, corner_radius=8, placeholder_text="Full name"
         )
-        self.add_name_entry.pack(side="left", padx=(0, 16), pady=(0, 10))
+        self.add_name.pack(side="left", padx=(6, 16))
 
         ctk.CTkButton(
-            add_row,
-            text="  Add Member  ",
-            command=self._do_add_member,
-            width=120,
-            height=36,
+            row,
+            text="Add",
+            width=80,
+            height=34,
             corner_radius=8,
             fg_color=Colors.TEAL,
             hover_color=Colors.TEAL_DARK,
-        ).pack(side="left", padx=(0, 12), pady=(0, 10))
+            command=self._do_add_member,
+        ).pack(side="left")
 
-        # -- Section: Member list --
-        list_header = ctk.CTkFrame(tab, fg_color="transparent")
-        list_header.pack(fill="x", padx=16, pady=(0, 6))
-
-        self.member_list_label = ctk.CTkLabel(
-            list_header,
+        hdr = ctk.CTkFrame(tab, fg_color="transparent")
+        hdr.pack(fill="x", padx=16, pady=(0, 6))
+        self.member_hdr = ctk.CTkLabel(
+            hdr,
             text="TEAM MEMBERS",
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color=Colors.TEAL,
         )
-        self.member_list_label.pack(side="left")
-
+        self.member_hdr.pack(side="left")
         ctk.CTkButton(
-            list_header,
+            hdr,
             text="Refresh",
-            command=self._refresh_members,
-            width=80,
-            height=28,
+            width=70,
+            height=26,
             corner_radius=6,
             font=ctk.CTkFont(size=11),
             fg_color="transparent",
@@ -1124,13 +861,11 @@ class AdminApp(ctk.CTk):
             border_color=Colors.BORDER,
             text_color=Colors.TEXT_SECONDARY,
             hover_color=Colors.BG_CARD_HOVER,
+            command=self._refresh_members,
         ).pack(side="right")
 
         self.member_frame = ctk.CTkScrollableFrame(
-            tab,
-            height=300,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
+            tab, height=280, corner_radius=10, fg_color=Colors.BG_CARD
         )
         self.member_frame.pack(fill="both", expand=True, padx=16, pady=(0, 16))
 
@@ -1138,12 +873,11 @@ class AdminApp(ctk.CTk):
         config = load_config()
         for w in self.member_frame.winfo_children():
             w.destroy()
-
-        self.member_list_label.configure(
-            text=f"TEAM MEMBERS ({len(config['members'])})"
+        self.member_hdr.configure(
+            text=f"TEAM MEMBERS ({len(config.get('members', []))})"
         )
 
-        for i, m in enumerate(config["members"]):
+        for i, m in enumerate(config.get("members", [])):
             row = ctk.CTkFrame(
                 self.member_frame,
                 corner_radius=8,
@@ -1151,50 +885,39 @@ class AdminApp(ctk.CTk):
             )
             row.pack(fill="x", padx=6, pady=2)
 
-            # Avatar placeholder
             avatar = ctk.CTkFrame(
-                row,
-                width=32,
-                height=32,
-                corner_radius=16,
-                fg_color=Colors.TEAL_DARK,
+                row, width=30, height=30, corner_radius=15, fg_color=Colors.TEAL_DARK
             )
             avatar.pack(side="left", padx=(10, 10), pady=6)
             avatar.pack_propagate(False)
-
             ctk.CTkLabel(
                 avatar,
                 text=m["name"][0].upper(),
-                font=ctk.CTkFont(size=13, weight="bold"),
+                font=ctk.CTkFont(size=12, weight="bold"),
                 text_color=Colors.TEXT_PRIMARY,
             ).pack(expand=True)
 
-            # Name and ID
-            info_frame = ctk.CTkFrame(row, fg_color="transparent")
-            info_frame.pack(side="left", fill="y", pady=6)
-
+            info = ctk.CTkFrame(row, fg_color="transparent")
+            info.pack(side="left", fill="y", pady=6)
             ctk.CTkLabel(
-                info_frame,
+                info,
                 text=m["name"],
                 anchor="w",
                 font=ctk.CTkFont(size=12, weight="bold"),
-                text_color=Colors.TEXT_PRIMARY,
             ).pack(anchor="w")
-
             ctk.CTkLabel(
-                info_frame,
+                info,
                 text=m["user_id"],
                 anchor="w",
                 font=ctk.CTkFont(size=10, family="Courier"),
                 text_color=Colors.TEXT_MUTED,
             ).pack(anchor="w")
 
-            # Remove button
             ctk.CTkButton(
                 row,
                 text="Remove",
-                width=70,
-                height=26,
+                width=65,
+                height=24,
                 corner_radius=6,
                 font=ctk.CTkFont(size=10),
                 fg_color="transparent",
@@ -1206,23 +929,22 @@ class AdminApp(ctk.CTk):
             ).pack(side="right", padx=10, pady=6)
 
     def _do_add_member(self):
-        uid = self.add_id_entry.get().strip()
-        name = self.add_name_entry.get().strip()
+        uid = self.add_id.get().strip()
+        name = self.add_name.get().strip()
         if not uid or not name:
-            self._status_bar_msg("Enter both User ID and Name.", Colors.WARNING)
+            self._msg("Enter both User ID and Name.", Colors.WARNING)
             return
-
         config = load_config()
         if get_member_name(config, uid) != uid:
-            self._status_bar_msg(f"{name} is already a member.", Colors.WARNING)
+            self._msg(f"{name} already exists.", Colors.WARNING)
             return
         config["members"].append({"user_id": uid, "name": name})
         save_config(config)
-        self.add_id_entry.delete(0, "end")
-        self.add_name_entry.delete(0, "end")
+        self.add_id.delete(0, "end")
+        self.add_name.delete(0, "end")
         self._refresh_members()
         self._refresh_test_checkboxes()
-        self._status_bar_msg(f"Added {name} ({uid})", Colors.SUCCESS)
+        self._msg(f"Added {name}", Colors.SUCCESS)
 
     def _remove_member(self, uid):
         config = load_config()
@@ -1234,83 +956,48 @@ class AdminApp(ctk.CTk):
             self._refresh_test_checkboxes()
 
     # ================================
-    #  TAB 4 - Test Users
+    #  TAB 4 — Test Users
     # ================================
 
     def _build_test_tab(self):
         tab = self.tab.add("  Test Users  ")
 
-        # -- Add test user --
-        add_header = ctk.CTkFrame(tab, fg_color="transparent")
-        add_header.pack(fill="x", padx=16, pady=(16, 8))
-
-        ctk.CTkLabel(
-            add_header,
-            text="ADD TEST RECIPIENT",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w")
-
-        add_row = ctk.CTkFrame(
-            tab,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
-        )
-        add_row.pack(fill="x", padx=16, pady=(0, 12))
-
+        self._section(tab, "ADD TEST RECIPIENT")
+        add_card = self._card(tab)
+        add_card.pack(fill="x", padx=16, pady=(0, 12))
+        row = ctk.CTkFrame(add_card, fg_color="transparent")
+        row.pack(fill="x", padx=12, pady=10)
         self.test_id_entry = ctk.CTkEntry(
-            add_row,
-            width=300,
-            height=36,
+            row,
+            width=280,
+            height=34,
             corner_radius=8,
             placeholder_text="@user:matrix.org",
-            placeholder_text_color=Colors.TEXT_MUTED,
         )
-        self.test_id_entry.pack(side="left", padx=12, pady=10)
-
+        self.test_id_entry.pack(side="left", padx=(0, 10))
         ctk.CTkButton(
-            add_row,
-            text="  Add  ",
-            command=self._do_add_test_id,
-            width=90,
-            height=36,
+            row,
+            text="Add",
+            width=80,
+            height=34,
             corner_radius=8,
             fg_color=Colors.TEAL,
             hover_color=Colors.TEAL_DARK,
-        ).pack(side="left", padx=(0, 12), pady=10)
+            command=self._do_add_test_id,
+        ).pack(side="left")
 
-        # -- Test user list --
-        list_header = ctk.CTkFrame(tab, fg_color="transparent")
-        list_header.pack(fill="x", padx=16, pady=(0, 6))
-
-        self.test_list_label = ctk.CTkLabel(
-            list_header,
+        hdr = ctk.CTkFrame(tab, fg_color="transparent")
+        hdr.pack(fill="x", padx=16, pady=(0, 6))
+        self.test_list_hdr = ctk.CTkLabel(
+            hdr,
             text="TEST RECIPIENTS",
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color=Colors.TEAL,
         )
-        self.test_list_label.pack(side="left")
-
-        ctk.CTkButton(
-            list_header,
-            text="Refresh",
-            command=self._refresh_test,
-            width=80,
-            height=28,
-            corner_radius=6,
-            font=ctk.CTkFont(size=11),
-            fg_color="transparent",
-            border_width=1,
-            border_color=Colors.BORDER,
-            text_color=Colors.TEXT_SECONDARY,
-            hover_color=Colors.BG_CARD_HOVER,
-        ).pack(side="right")
+        self.test_list_hdr.pack(side="left")
 
         self.test_frame = ctk.CTkScrollableFrame(
-            tab,
-            height=220,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
+            tab, height=200, corner_radius=10, fg_color=Colors.BG_CARD
         )
         self.test_frame.pack(fill="both", expand=True, padx=16, pady=(0, 8))
 
@@ -1319,72 +1006,57 @@ class AdminApp(ctk.CTk):
             text="Test users receive announcements when using 'Send to Selected'.",
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_MUTED,
-        ).pack(anchor="w", padx=16, pady=(0, 4))
-
-        # -- Actions --
-        btn_row = ctk.CTkFrame(tab, fg_color="transparent")
-        btn_row.pack(fill="x", padx=16, pady=(0, 16))
+        ).pack(anchor="w", padx=16, pady=(0, 8))
 
         ctk.CTkButton(
-            btn_row,
-            text="  Clear All  ",
-            command=self._do_clear_test_ids,
-            width=100,
-            height=32,
+            tab,
+            text="Clear All",
+            width=90,
+            height=30,
             corner_radius=8,
             fg_color=Colors.DANGER,
             hover_color=Colors.DANGER_HOVER,
-        ).pack(side="left")
+            command=self._do_clear_test_ids,
+        ).pack(anchor="w", padx=16, pady=(0, 16))
 
     def _refresh_test(self):
         config = load_config()
-        test_ids = config.get("test_user_ids", [])
-
+        ids = config.get("test_user_ids", [])
         for w in self.test_frame.winfo_children():
             w.destroy()
+        self.test_list_hdr.configure(text=f"TEST RECIPIENTS ({len(ids)})")
 
-        self.test_list_label.configure(text=f"TEST RECIPIENTS ({len(test_ids)})")
-
-        if not test_ids:
+        if not ids:
             ctk.CTkLabel(
                 self.test_frame,
-                text="No test recipients configured.",
+                text="No test recipients.",
                 font=ctk.CTkFont(size=11),
                 text_color=Colors.TEXT_MUTED,
             ).pack(pady=20)
             return
 
-        for uid in test_ids:
+        for uid in ids:
             name = get_member_name(config, uid)
-            is_registered = name != uid
-
+            reg = name != uid
             row = ctk.CTkFrame(
-                self.test_frame,
-                corner_radius=6,
-                fg_color=Colors.BG_CARD_HOVER,
+                self.test_frame, corner_radius=6, fg_color=Colors.BG_CARD_HOVER
             )
             row.pack(fill="x", padx=6, pady=2)
-
-            icon = "✓" if is_registered else "?"
-            icon_color = Colors.SUCCESS if is_registered else Colors.WARNING
-
             ctk.CTkLabel(
                 row,
-                text=icon,
+                text="✓" if reg else "?",
                 font=ctk.CTkFont(size=11, weight="bold"),
-                text_color=icon_color,
+                text_color=Colors.SUCCESS if reg else Colors.WARNING,
                 width=24,
             ).pack(side="left", padx=(10, 4), pady=6)
-
-            display = f"{name} — {uid}" if is_registered else f"{uid} (not in members)"
+            lbl = f"{name} — {uid}" if reg else f"{uid} (not in members)"
             ctk.CTkLabel(
                 row,
-                text=display,
+                text=lbl,
                 anchor="w",
                 font=ctk.CTkFont(size=11),
-                text_color=Colors.TEXT_PRIMARY if is_registered else Colors.TEXT_MUTED,
-            ).pack(side="left", padx=(0, 8), pady=6)
-
+                text_color=Colors.TEXT_PRIMARY if reg else Colors.TEXT_MUTED,
+            ).pack(side="left", pady=6)
             ctk.CTkButton(
                 row,
                 text="Remove",
@@ -1404,18 +1076,17 @@ class AdminApp(ctk.CTk):
         uid = self.test_id_entry.get().strip()
         if not uid:
             return
-
         config = load_config()
         current = config.get("test_user_ids", [])
         if uid in current:
-            self._status_bar_msg(f"{uid} is already a test user.", Colors.WARNING)
+            self._msg(f"{uid} already a test user.", Colors.WARNING)
             return
         current.append(uid)
         config["test_user_ids"] = current
         save_config(config)
         self.test_id_entry.delete(0, "end")
         self._refresh_test()
-        self._status_bar_msg(f"Added test user {uid}", Colors.SUCCESS)
+        self._msg(f"Added {uid}", Colors.SUCCESS)
 
     def _remove_test_id(self, uid):
         config = load_config()
@@ -1431,77 +1102,43 @@ class AdminApp(ctk.CTk):
         config["test_user_ids"] = []
         save_config(config)
         self._refresh_test()
-        self._status_bar_msg("Test user IDs cleared.", Colors.SUCCESS)
+        self._msg("Test users cleared.", Colors.SUCCESS)
 
     # ================================
-    #  TAB 5 - Settings
+    #  TAB 5 — Settings
     # ================================
 
     def _build_settings_tab(self):
         tab = self.tab.add("  Settings  ")
 
-        # -- Configuration section --
-        config_header = ctk.CTkFrame(tab, fg_color="transparent")
-        config_header.pack(fill="x", padx=16, pady=(16, 8))
-
-        ctk.CTkLabel(
-            config_header,
-            text="BOT CONFIGURATION",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w")
-
-        config_card = ctk.CTkFrame(
-            tab,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
-        )
-        config_card.pack(fill="x", padx=16, pady=(0, 16))
-
-        self._settings_row(config_card, "Homeserver:", HOMESERVER or "Not set")
-        self._settings_row(config_card, "User ID:", USER_ID or "Not set")
-        self._settings_row(config_card, "Room ID:", ROOM_ID or "Not set (DM mode)")
-        self._settings_row(config_card, "Admin:", ADMIN_ID or "Not set")
-
+        self._section(tab, "BOT CONFIGURATION")
+        card = self._card(tab)
+        card.pack(fill="x", padx=16, pady=(0, 16))
+        self._row(card, "Homeserver:", HOMESERVER or "Not set")
+        self._row(card, "User ID:", USER_ID or "Not set")
+        self._row(card, "Room ID:", ROOM_ID or "Not set (DM mode)")
+        self._row(card, "Admin:", ADMIN_ID or "Not set")
         status = "Connected" if self.matrix_ready else "Not configured"
-        status_color = Colors.SUCCESS if self.matrix_ready else Colors.DANGER
-        self._settings_row(config_card, "Status:", status, status_color)
+        color = Colors.SUCCESS if self.matrix_ready else Colors.DANGER
+        self._row(card, "Status:", status, color)
 
-        # -- Data files section --
-        data_header = ctk.CTkFrame(tab, fg_color="transparent")
-        data_header.pack(fill="x", padx=16, pady=(0, 8))
+        self._section(tab, "DATA FILES")
+        dc = self._card(tab)
+        dc.pack(fill="x", padx=16, pady=(0, 16))
+        self._row(dc, "Config:", str(CONFIG_FILE))
+        self._row(dc, "Data:", str(DATA_FILE))
+        self._row(dc, ".env:", str(BASE_DIR / ".env"))
 
+        self._section(tab, "INFO")
+        ic = self._card(tab)
+        ic.pack(fill="x", padx=16, pady=(0, 16))
         ctk.CTkLabel(
-            data_header,
-            text="DATA FILES",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=Colors.TEAL,
-        ).pack(anchor="w")
-
-        data_card = ctk.CTkFrame(
-            tab,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
-        )
-        data_card.pack(fill="x", padx=16, pady=(0, 16))
-
-        self._settings_row(data_card, "Config:", str(CONFIG_FILE))
-        self._settings_row(data_card, "Data:", str(DATA_FILE))
-        self._settings_row(data_card, ".env:", str(BASE_DIR / ".env"))
-
-        # -- Info section --
-        info_card = ctk.CTkFrame(
-            tab,
-            corner_radius=10,
-            fg_color=Colors.BG_CARD,
-        )
-        info_card.pack(fill="x", padx=16, pady=(0, 16))
-
-        ctk.CTkLabel(
-            info_card,
-            text="This admin GUI shares config.json and data.json with bot.py. "
-            "Changes made here are immediately visible to the bot and vice versa.\n\n"
-            "Members confirm engagement by reacting with ✅ to announcements.",
+            ic,
+            text=(
+                "This GUI shares config.json and data.json with bot.py. "
+                "Changes here are visible to the bot immediately.\n\n"
+                "Members confirm engagement by reacting with ✅ to announcements."
+            ),
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_SECONDARY,
             justify="left",
@@ -1509,31 +1146,24 @@ class AdminApp(ctk.CTk):
         ).pack(anchor="w", padx=16, pady=12)
 
     @staticmethod
-    def _settings_row(parent, label, value, value_color=None):
+    def _row(parent, label, value, color=None):
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", padx=16, pady=4)
-
         ctk.CTkLabel(
             row,
             text=label,
-            width=120,
+            width=110,
             anchor="w",
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color=Colors.TEXT_MUTED,
         ).pack(side="left")
-
-        lbl = ctk.CTkLabel(
+        ctk.CTkLabel(
             row,
             text=value,
             anchor="w",
             font=ctk.CTkFont(size=11),
-            text_color=value_color or Colors.TEXT_PRIMARY,
-        )
-        lbl.pack(side="left", padx=(8, 0))
-
-    # ------------------------------------------------------------------
-    # Batch refresh
-    # ------------------------------------------------------------------
+            text_color=color or Colors.TEXT_PRIMARY,
+        ).pack(side="left", padx=(8, 0))
 
     def _refresh_all(self):
         self._refresh_status()
@@ -1542,10 +1172,5 @@ class AdminApp(ctk.CTk):
         self._refresh_test_checkboxes()
 
 
-# ===================================================================
-# Entry point
-# ===================================================================
-
 if __name__ == "__main__":
-    app = AdminApp()
-    app.mainloop()
+    AdminApp().mainloop()

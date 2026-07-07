@@ -75,7 +75,7 @@ async def send_text(client, room_id, text):
     content = {
         "msgtype": "m.text",
         "body": text,
-        "m.relates_to": {"fi.mau.dont_render": True},
+        "fi.mau.dont_render": True,
     }
     resp = await client.room_send(
         room_id,
@@ -93,7 +93,7 @@ async def send_html(client, room_id, body, html):
         "body": body,
         "format": "org.matrix.custom.html",
         "formatted_body": html,
-        "m.relates_to": {"fi.mau.dont_render": True},
+        "fi.mau.dont_render": True,
     }
     resp = await client.room_send(
         room_id,
