@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_FILE = BASE_DIR / "config.json"
 DATA_FILE = BASE_DIR / "data.json"
+TEMPLATES_FILE = BASE_DIR / "templates.json"
 CREDENTIALS_FILE = BASE_DIR / "credentials.json"
 STORE_PATH = str(BASE_DIR / "store")
 
@@ -47,6 +48,14 @@ def save_config(config):
 
 def save_data(data):
     save_json(DATA_FILE, data)
+
+
+def load_templates():
+    return load_json(TEMPLATES_FILE, {"templates": []})
+
+
+def save_templates(templates):
+    save_json(TEMPLATES_FILE, templates)
 
 
 def get_member_name(config, user_id, default=None):

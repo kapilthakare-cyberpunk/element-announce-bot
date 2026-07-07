@@ -22,6 +22,7 @@ from common import (
     BASE_DIR,
     CONFIG_FILE,
     DATA_FILE,
+    TEMPLATES_FILE,
     CREDENTIALS_FILE,
     STORE_PATH,
     HOMESERVER,
@@ -34,6 +35,8 @@ from common import (
     load_data,
     save_config,
     save_data,
+    load_templates,
+    save_templates,
     get_member_name,
     get_or_create_dm_room,
 )
@@ -341,6 +344,58 @@ class AdminApp(ctk.CTk):
         )
         self.send_test_btn.pack(side="left")
 
+        self._section(tab, "TEMPLATES")
+        tpl_row = ctk.CTkFrame(tab, fg_color="transparent")
+        tpl_row.pack(fill="x", padx=16, pady=(0, 8))
+
+        self.tpl_menu = ctk.CTkOptionMenu(
+            tpl_row,
+            width=260,
+            height=34,
+            corner_radius=8,
+            fg_color=Colors.BG_CARD,
+            button_color=Colors.BORDER,
+            button_hover_color=Colors.TEXT_MUTED,
+        )
+        self.tpl_menu.pack(side="left", padx=(0, 8))
+        self._refresh_tpl_menu()
+
+        ctk.CTkButton(
+            tpl_row,
+            text="Load",
+            width=60,
+            height=34,
+            corner_radius=8,
+            fg_color="transparent",
+            border_width=2,
+            border_color=Colors.TEAL,
+            text_color=Colors.TEAL,
+            hover_color=Colors.BG_CARD_HOVER,
+            command=self._load_template,
+        ).pack(side="left", padx=(0, 4))
+
+        ctk.CTkButton(
+            tpl_row,
+            text="Save",
+            width=60,
+            height=34,
+            corner_radius=8,
+            fg_color=Colors.TEAL,
+            hover_color=Colors.TEAL_DARK,
+            command=self._save_template,
+        ).pack(side="left", padx=(0, 4))
+
+        ctk.CTkButton(
+            tpl_row,
+            text="Delete",
+            width=60,
+            height=34,
+            corner_radius=8,
+            fg_color=Colors.DANGER,
+            hover_color=Colors.DANGER_HOVER,
+            command=self._delete_template,
+        ).pack(side="left")
+
         self._section(tab, "SELECT RECIPIENTS")
         self.test_check_frame = ctk.CTkScrollableFrame(
             tab, height=90, corner_radius=8, fg_color=Colors.BG_CARD
@@ -524,6 +579,87 @@ class AdminApp(ctk.CTk):
         loop.close()
         self.after(0, lambda: self.send_all_btn.configure(state="normal"))
         self.after(0, lambda: self.send_test_btn.configure(state="normal"))
+
+    # ---- template helpers ----
+
+    def _refresh_tpl_menu(self):
+        templates = load_templates().get("templates", [])
+        names = [t["name"] for t in templates] or ["(no templates)"]
+        self.tpl_menu.configure(values=names)
+        self.tpl_menu.set(names[0])
+
+    def _load_template(self):
+        name = self.tpl_menu.get()
+        if name.startswith("("):
+            return
+        templates = load_templates().get("templates", [])
+        tpl = next((t for t in templates if t["name"] == name), None)
+        if tpl:
+            self.announce_text.delete("1.0", "end")
+            self.announce_text.insert("1.0", tpl["text"])
+            self._msg(f"Loaded template: {name}", Colors.SUCCESS)
+
+    def _save_template(self):
+        text = self.announce_text.get("1.0", "end-1c").strip()
+        if not text:
+            self._msg("Cannot save — message is empty.", Colors.WARNING)
+            return
+        win = ctk.CTkToplevel(self)
+        win.title("Save Template")
+        win.geometry("400x150")
+        win.transient(self)
+        win.grab_set()
+        win.configure(fg_color=Colors.BG_DARK)
+
+        ctk.CTkLabel(
+            win,
+            text="Template name:",
+            font=ctk.CTkFont(size=12),
+            text_color=Colors.TEXT_PRIMARY,
+        ).pack(anchor="w", padx=20, pady=(20, 4))
+
+        entry = ctk.CTkEntry(
+            win,
+            width=360,
+            height=34,
+            corner_radius=8,
+            placeholder_text="e.g. Social Media Engagement",
+        )
+        entry.pack(padx=20, pady=(0, 16))
+
+        def confirm():
+            name = entry.get().strip()
+            if not name:
+                return
+            data = load_templates()
+            data["templates"] = [t for t in data["templates"] if t["name"] != name]
+            data["templates"].append({"name": name, "text": text})
+            save_templates(data)
+            self._refresh_tpl_menu()
+            self.tpl_menu.set(name)
+            self._msg(f"Saved template: {name}", Colors.SUCCESS)
+            win.destroy()
+
+        ctk.CTkButton(
+            win,
+            text="Save",
+            width=100,
+            height=34,
+            corner_radius=8,
+            fg_color=Colors.TEAL,
+            hover_color=Colors.TEAL_DARK,
+            command=confirm,
+        ).pack()
+
+    def _delete_template(self):
+        name = self.tpl_menu.get()
+        if name.startswith("("):
+            return
+        data = load_templates()
+        data["templates"] = [t for t in data["templates"] if t["name"] != name]
+        save_templates(data)
+        self._refresh_tpl_menu()
+        self._msg(f"Deleted template: {name}", Colors.SUCCESS)
 
     def _refresh_test_checkboxes(self):
         for w in self.test_check_frame.winfo_children():
