@@ -200,32 +200,44 @@ class BotCallbacks:
             if is_admin:
                 await self.cmd_status(room)
             else:
-                await send_text(self.client, room.room_id, "Only admin can use /status.")
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /status."
+                )
         elif cmd == "/retract":
             if is_admin:
                 await self.cmd_retract(room, args)
             else:
-                await send_text(self.client, room.room_id, "Only admin can use /retract.")
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /retract."
+                )
         elif cmd == "/members":
             if is_admin:
                 await self.cmd_members(room)
             else:
-                await send_text(self.client, room.room_id, "Only admin can use /members.")
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /members."
+                )
         elif cmd == "/settest":
             if is_admin:
                 await self.cmd_settest(room, args)
             else:
-                await send_text(self.client, room.room_id, "Only admin can use /settest.")
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /settest."
+                )
         elif cmd == "/testlist":
             if is_admin:
                 await self.cmd_testlist(room)
             else:
-                await send_text(self.client, room.room_id, "Only admin can use /testlist.")
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /testlist."
+                )
         elif cmd == "/announce":
             if is_admin:
                 await self.cmd_announce(room, args)
             else:
-                await send_text(self.client, room.room_id, "Only admin can use /announce.")
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /announce."
+                )
 
     async def cmd_help(self, room):
         help_text = (
@@ -252,13 +264,21 @@ class BotCallbacks:
 
         for m in config["members"]:
             if m["user_id"] == user_id:
-                await send_text(self.client, room.room_id, f"You are already registered as {m['name']}.")
+                await send_text(
+                    self.client,
+                    room.room_id,
+                    f"You are already registered as {m['name']}.",
+                )
                 return
 
         config["members"].append({"user_id": user_id, "name": name.strip()})
         save_config(config)
 
-        await send_text(self.client, room.room_id, f"Welcome {name.strip()}! You are now registered.")
+        await send_text(
+            self.client,
+            room.room_id,
+            f"Welcome {name.strip()}! You are now registered.",
+        )
         log.info(f"New member registered: {name.strip()} ({user_id})")
 
     async def cmd_status(self, room):
@@ -287,7 +307,9 @@ class BotCallbacks:
     async def cmd_retract(self, room, args):
         """Retract (redact) all messages for an announcement."""
         if not args:
-            await send_text(self.client, room.room_id, "Usage: /retract <announcement_id>")
+            await send_text(
+                self.client, room.room_id, "Usage: /retract <announcement_id>"
+            )
             return
 
         try:
@@ -304,12 +326,18 @@ class BotCallbacks:
                 break
 
         if not target:
-            await send_text(self.client, room.room_id, f"Announcement #{ann_id} not found.")
+            await send_text(
+                self.client, room.room_id, f"Announcement #{ann_id} not found."
+            )
             return
 
         sent = target.get("sent_messages", [])
         if not sent:
-            await send_text(self.client, room.room_id, f"Announcement #{ann_id} has no retractable messages.")
+            await send_text(
+                self.client,
+                room.room_id,
+                f"Announcement #{ann_id} has no retractable messages.",
+            )
             return
 
         deleted = 0
@@ -320,7 +348,11 @@ class BotCallbacks:
             except Exception as e:
                 log.warning(f"Failed to redact {entry['event_id']}: {e}")
 
-        await send_text(self.client, room.room_id, f"Retracted {deleted}/{len(sent)} messages for announcement #{ann_id}.")
+        await send_text(
+            self.client,
+            room.room_id,
+            f"Retracted {deleted}/{len(sent)} messages for announcement #{ann_id}.",
+        )
 
     async def cmd_members(self, room):
         """List all registered members."""
@@ -347,7 +379,9 @@ class BotCallbacks:
         test_ids = config.get("test_user_ids", [])
 
         if user_id in test_ids:
-            await send_text(self.client, room.room_id, f"{user_id} is already a test user.")
+            await send_text(
+                self.client, room.room_id, f"{user_id} is already a test user."
+            )
             return
 
         test_ids.append(user_id)
@@ -373,14 +407,20 @@ class BotCallbacks:
     async def cmd_announce(self, room, args):
         """Send announcement to all members."""
         if not args:
-            await send_text(self.client, room.room_id, "Usage: /announce <message text>")
+            await send_text(
+                self.client, room.room_id, "Usage: /announce <message text>"
+            )
             return
 
         config = load_config()
         members = config.get("members", [])
 
         if not members:
-            await send_text(self.client, room.room_id, "No members registered. Cannot send announcement.")
+            await send_text(
+                self.client,
+                room.room_id,
+                "No members registered. Cannot send announcement.",
+            )
             return
 
         data = load_data()
@@ -393,22 +433,26 @@ class BotCallbacks:
                 if dm_room_id:
                     resp = await send_text(self.client, dm_room_id, args)
                     if hasattr(resp, "event_id"):
-                        sent_list.append({
-                            "user_id": m["user_id"],
-                            "name": m["name"],
-                            "event_id": resp.event_id,
-                        })
+                        sent_list.append(
+                            {
+                                "user_id": m["user_id"],
+                                "name": m["name"],
+                                "event_id": resp.event_id,
+                            }
+                        )
                         log.info(f"Sent announcement to {m['name']} in DM {dm_room_id}")
             except Exception as e:
                 log.error(f"Failed to send to {m['name']}: {e}")
 
         if sent_list:
-            data["announcements"].append({
-                "id": ann_id,
-                "text": args,
-                "completed_by": [],
-                "sent_messages": sent_list,
-            })
+            data["announcements"].append(
+                {
+                    "id": ann_id,
+                    "text": args,
+                    "completed_by": [],
+                    "sent_messages": sent_list,
+                }
+            )
             save_data(data)
 
             await send_text(
@@ -458,7 +502,9 @@ class BotCallbacks:
                         ann["completed_by"].append(sender)
                         save_data(data)
                         name = get_member_name(load_config(), sender, sender)
-                        log.info(f"{name} confirmed engagement for announcement #{ann['id']}")
+                        log.info(
+                            f"{name} confirmed engagement for announcement #{ann['id']}"
+                        )
                     return
 
     async def on_invite(self, room, event):
@@ -494,7 +540,7 @@ async def main():
         max_limit_exceeded=0,
         max_timeouts=0,
         store_sync_tokens=True,
-        encryption_enabled=True,
+        encryption_enabled=False,
     )
 
     client = AsyncClient(
@@ -526,11 +572,15 @@ async def main():
             if isinstance(resp, LoginError):
                 log.error(f"Login failed: {resp.message}")
                 return
-            CREDENTIALS_FILE.write_text(json.dumps({
-                "user_id": client.user_id,
-                "access_token": client.access_token,
-                "device_id": client.device_id,
-            }))
+            CREDENTIALS_FILE.write_text(
+                json.dumps(
+                    {
+                        "user_id": client.user_id,
+                        "access_token": client.access_token,
+                        "device_id": client.device_id,
+                    }
+                )
+            )
     elif ACCESS_TOKEN:
         client.access_token = ACCESS_TOKEN
         log.info("Using access token from .env")
@@ -539,11 +589,15 @@ async def main():
         if isinstance(resp, LoginError):
             log.error(f"Login failed: {resp.message}")
             return
-        CREDENTIALS_FILE.write_text(json.dumps({
-            "user_id": client.user_id,
-            "access_token": client.access_token,
-            "device_id": client.device_id,
-        }))
+        CREDENTIALS_FILE.write_text(
+            json.dumps(
+                {
+                    "user_id": client.user_id,
+                    "access_token": client.access_token,
+                    "device_id": client.device_id,
+                }
+            )
+        )
 
     # Upload encryption keys
     if client.should_upload_keys:
