@@ -300,8 +300,8 @@ class AdminApp(ctk.CTk):
         left_col = ctk.CTkFrame(main_container, fg_color="transparent")
         left_col.pack(side="left", fill="both", expand=True, padx=(0, 16))
 
-        right_col = ctk.CTkFrame(main_container, fg_color="transparent")
-        right_col.pack(side="right", fill="both", width=280)
+        right_col = ctk.CTkFrame(main_container, width=280, fg_color="transparent")
+        right_col.pack(side="right", fill="both")
 
         # --- LEFT COLUMN: COMPOSE & TEMPLATES & LOG ---
         self._section(left_col, "COMPOSE ANNOUNCEMENT")
