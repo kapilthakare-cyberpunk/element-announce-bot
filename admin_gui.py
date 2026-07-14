@@ -292,20 +292,31 @@ class AdminApp(ctk.CTk):
 
     def _build_announce_tab(self):
         tab = self.tab.add("  Announce  ")
+        
+        # Two-column layout container
+        main_container = ctk.CTkFrame(tab, fg_color="transparent")
+        main_container.pack(fill="both", expand=True, padx=16, pady=12)
 
-        self._section(tab, "COMPOSE ANNOUNCEMENT")
+        left_col = ctk.CTkFrame(main_container, fg_color="transparent")
+        left_col.pack(side="left", fill="both", expand=True, padx=(0, 16))
+
+        right_col = ctk.CTkFrame(main_container, fg_color="transparent")
+        right_col.pack(side="right", fill="both", width=280)
+
+        # --- LEFT COLUMN: COMPOSE & TEMPLATES & LOG ---
+        self._section(left_col, "COMPOSE ANNOUNCEMENT")
         ctk.CTkLabel(
-            tab,
+            left_col,
             text="Write your message. It will be sent as a DM to each team member.",
             font=ctk.CTkFont(size=11),
             text_color=Colors.TEXT_MUTED,
-        ).pack(anchor="w", padx=16, pady=(0, 8))
+        ).pack(anchor="w", padx=0, pady=(0, 8))
 
-        editor = self._card(tab)
-        editor.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+        editor = self._card(left_col)
+        editor.pack(fill="both", expand=True, padx=0, pady=(0, 12))
         self.announce_text = ctk.CTkTextbox(
             editor,
-            height=160,
+            height=200,
             wrap="word",
             corner_radius=10,
             fg_color=Colors.BG_CARD,
@@ -314,8 +325,8 @@ class AdminApp(ctk.CTk):
         )
         self.announce_text.pack(fill="both", expand=True, padx=2, pady=2)
 
-        btns = ctk.CTkFrame(tab, fg_color="transparent")
-        btns.pack(fill="x", padx=16, pady=(0, 12))
+        btns = ctk.CTkFrame(left_col, fg_color="transparent")
+        btns.pack(fill="x", padx=0, pady=(0, 12))
 
         self.send_all_btn = ctk.CTkButton(
             btns,
@@ -344,9 +355,9 @@ class AdminApp(ctk.CTk):
         )
         self.send_test_btn.pack(side="left")
 
-        self._section(tab, "TEMPLATES")
-        tpl_row = ctk.CTkFrame(tab, fg_color="transparent")
-        tpl_row.pack(fill="x", padx=16, pady=(0, 8))
+        self._section(left_col, "TEMPLATES")
+        tpl_row = ctk.CTkFrame(left_col, fg_color="transparent")
+        tpl_row.pack(fill="x", padx=0, pady=(0, 8))
 
         self.tpl_menu = ctk.CTkOptionMenu(
             tpl_row,
@@ -396,19 +407,23 @@ class AdminApp(ctk.CTk):
             command=self._delete_template,
         ).pack(side="left")
 
-        self._section(tab, "SELECT RECIPIENTS")
-        self.test_check_frame = ctk.CTkScrollableFrame(
-            tab, height=90, corner_radius=8, fg_color=Colors.BG_CARD
+        self._section(left_col, "ACTIVITY LOG")
+        self.send_log = ctk.CTkScrollableFrame(
+            left_col, height=180, corner_radius=8, fg_color=Colors.BG_CARD
         )
-        self.test_check_frame.pack(fill="x", padx=16, pady=(0, 8))
+        self.send_log.pack(fill="x", padx=0, pady=(0, 0))
+
+        # --- RIGHT COLUMN: SELECT RECIPIENTS ---
+        self._section(right_col, "SELECT RECIPIENTS")
+        recipients_card = self._card(right_col)
+        recipients_card.pack(fill="both", expand=True, pady=(0, 0))
+
+        self.test_check_frame = ctk.CTkScrollableFrame(
+            recipients_card, corner_radius=8, fg_color="transparent"
+        )
+        self.test_check_frame.pack(fill="both", expand=True, padx=2, pady=2)
         self.test_checkvars = {}
         self._refresh_test_checkboxes()
-
-        self._section(tab, "ACTIVITY LOG")
-        self.send_log = ctk.CTkScrollableFrame(
-            tab, height=110, corner_radius=8, fg_color=Colors.BG_CARD
-        )
-        self.send_log.pack(fill="x", padx=16, pady=(0, 16))
 
     def _do_send_all(self):
         text = self.announce_text.get("1.0", "end-1c").strip()
