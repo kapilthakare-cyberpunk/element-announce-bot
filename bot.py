@@ -172,6 +172,7 @@ class BotCallbacks:
 
     def __init__(self, client):
         self.client = client
+        self.pending_announcement = None
 
     async def on_message(self, room, event):
         """Handle incoming text messages."""
@@ -240,6 +241,20 @@ class BotCallbacks:
                 await send_text(
                     self.client, room.room_id, "Only admin can use /announce."
                 )
+        elif cmd == "/confirm":
+            if is_admin:
+                await self.cmd_confirm(room)
+            else:
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /confirm."
+                )
+        elif cmd == "/cancel":
+            if is_admin:
+                await self.cmd_cancel(room)
+            else:
+                await send_text(
+                    self.client, room.room_id, "Only admin can use /cancel."
+                )
 
     async def cmd_help(self, room):
         help_text = (
@@ -250,7 +265,9 @@ class BotCallbacks:
             "/members — List all members (admin)\n"
             "/settest <user_id> — Add test user (admin)\n"
             "/testlist — List test users (admin)\n"
-            "/announce <text> — Send announcement to all members (admin)\n"
+            "/announce <text> — Create a pending announcement draft (admin)\n"
+            "/confirm — Confirm and broadcast the pending announcement (admin)\n"
+            "/cancel — Discard the pending announcement draft (admin)\n"
             "\nTo confirm engagement: react with ✅ to any announcement message."
         )
         await send_text(self.client, room.room_id, help_text)
@@ -407,12 +424,31 @@ class BotCallbacks:
         await send_text(self.client, room.room_id, "\n".join(lines))
 
     async def cmd_announce(self, room, args):
-        """Send announcement to all members."""
+        """Create a pending announcement draft (requires confirmation)."""
         if not args:
             await send_text(
                 self.client, room.room_id, "Usage: /announce <message text>"
             )
             return
+
+        self.pending_announcement = args
+        review_text = (
+            "⚠️ **Review Announcement Draft**:\n\n"
+            f"{args}\n\n"
+            "Reply with `/confirm` to broadcast to all members, or `/cancel` to discard this draft."
+        )
+        await send_text(self.client, room.room_id, review_text)
+
+    async def cmd_confirm(self, room):
+        """Confirm and send the pending announcement."""
+        if not self.pending_announcement:
+            await send_text(
+                self.client, room.room_id, "No pending announcement to confirm."
+            )
+            return
+
+        args = self.pending_announcement
+        self.pending_announcement = None
 
         config = load_config()
         members = config.get("members", [])
@@ -424,6 +460,12 @@ class BotCallbacks:
                 "No members registered. Cannot send announcement.",
             )
             return
+
+        await send_text(
+            self.client,
+            room.room_id,
+            f"Broadcasting announcement to {len(members)} members...",
+        )
 
         data = load_data()
         ann_id = len(data["announcements"]) + 1
@@ -447,6 +489,8 @@ class BotCallbacks:
                         )
                         continue
 
+                # Sync to verify E2EE setup for the DM room
+                await self.client.sync(timeout=3000)
                 resp = await send_text(self.client, dm_room_id, args)
                 if hasattr(resp, "event_id"):
                     sent_list.append(
@@ -478,6 +522,17 @@ class BotCallbacks:
             )
         else:
             await send_text(self.client, room.room_id, "Failed to send announcement.")
+
+    async def cmd_cancel(self, room):
+        """Cancel/discard the pending announcement draft."""
+        if not self.pending_announcement:
+            await send_text(
+                self.client, room.room_id, "No pending announcement to cancel."
+            )
+            return
+
+        self.pending_announcement = None
+        await send_text(self.client, room.room_id, "Announcement draft discarded.")
 
     async def on_reaction(self, room, event):
         """Handle reaction events (✅ confirmations)."""

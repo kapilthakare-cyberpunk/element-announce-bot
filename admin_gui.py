@@ -743,7 +743,7 @@ class AdminApp(ctk.CTk):
     def _preview(self, text, count, btn_label, on_confirm):
         win = ctk.CTkToplevel(self)
         win.title("Preview")
-        win.geometry("540x500")
+        win.geometry("540x550")
         win.transient(self)
         win.grab_set()
         win.configure(fg_color=Colors.BG_DARK)
@@ -769,6 +769,28 @@ class AdminApp(ctk.CTk):
         tb.insert("1.0", text)
         tb.configure(state="disabled")
 
+        # Mandatory review checkbox
+        confirm_btn = None
+        checkbox_var = ctk.BooleanVar(value=False)
+        
+        def toggle_confirm_btn():
+            if checkbox_var.get():
+                confirm_btn.configure(state="normal")
+            else:
+                confirm_btn.configure(state="disabled")
+
+        checkbox = ctk.CTkCheckBox(
+            win, 
+            text="I have reviewed this announcement and verify it is correct.", 
+            variable=checkbox_var,
+            command=toggle_confirm_btn,
+            font=ctk.CTkFont(size=12),
+            text_color=Colors.TEXT_PRIMARY,
+            fg_color=Colors.TEAL,
+            hover_color=Colors.TEAL_DARK
+        )
+        checkbox.pack(anchor="w", padx=16, pady=(0, 16))
+
         bf = ctk.CTkFrame(win, fg_color="transparent")
         bf.pack(fill="x", padx=16, pady=(0, 16))
         ctk.CTkButton(
@@ -783,7 +805,7 @@ class AdminApp(ctk.CTk):
             hover_color=Colors.BG_CARD_HOVER,
             command=win.destroy,
         ).pack(side="left")
-        ctk.CTkButton(
+        confirm_btn = ctk.CTkButton(
             bf,
             text=btn_label,
             width=200,
@@ -791,8 +813,10 @@ class AdminApp(ctk.CTk):
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color=Colors.TEAL,
             hover_color=Colors.TEAL_DARK,
+            state="disabled",
             command=lambda: (win.destroy(), on_confirm()),
-        ).pack(side="right")
+        )
+        confirm_btn.pack(side="right")
 
     # ================================
     #  TAB 2 — Status
