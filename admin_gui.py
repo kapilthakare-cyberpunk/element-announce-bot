@@ -493,7 +493,13 @@ class AdminApp(ctk.CTk):
                             )
                             continue
 
-                    resp = await matrix_sync_and_send(client, room, text)
+                    first_name = m["name"].split()[0]
+                    if "abhijit" in m["name"].lower():
+                        personal_name = "Abhijit Sir"
+                    else:
+                        personal_name = first_name
+                    personal_text = text.replace("<Name>", personal_name)
+                    resp = await matrix_sync_and_send(client, room, personal_text)
                     if hasattr(resp, "event_id"):
                         sent.append(
                             {
@@ -537,10 +543,15 @@ class AdminApp(ctk.CTk):
                 self.after(0, lambda: self._log("Failed to send.", Colors.DANGER))
             await client.close()
 
-        loop.run_until_complete(run())
-        loop.close()
-        self.after(0, lambda: self.send_all_btn.configure(state="normal"))
-        self.after(0, lambda: self.send_test_btn.configure(state="normal"))
+        try:
+            loop.run_until_complete(run())
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
+            self.after(0, lambda: self.send_all_btn.configure(state="normal"))
+            self.after(0, lambda: self.send_test_btn.configure(state="normal"))
 
     def _do_send_test(self):
         text = self.announce_text.get("1.0", "end-1c").strip()
@@ -615,7 +626,13 @@ class AdminApp(ctk.CTk):
                             )
                             continue
 
-                    resp = await matrix_sync_and_send(client, room, text)
+                    first_name = m["name"].split()[0]
+                    if "abhijit" in m["name"].lower():
+                        personal_name = "Abhijit Sir"
+                    else:
+                        personal_name = first_name
+                    personal_text = text.replace("<Name>", personal_name)
+                    resp = await matrix_sync_and_send(client, room, personal_text)
                     if hasattr(resp, "event_id"):
                         ok += 1
                         self.after(
@@ -640,10 +657,15 @@ class AdminApp(ctk.CTk):
             )
             await client.close()
 
-        loop.run_until_complete(run())
-        loop.close()
-        self.after(0, lambda: self.send_all_btn.configure(state="normal"))
-        self.after(0, lambda: self.send_test_btn.configure(state="normal"))
+        try:
+            loop.run_until_complete(run())
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
+            self.after(0, lambda: self.send_all_btn.configure(state="normal"))
+            self.after(0, lambda: self.send_test_btn.configure(state="normal"))
 
     # ---- template helpers ----
 
@@ -730,6 +752,22 @@ class AdminApp(ctk.CTk):
         for w in self.test_check_frame.winfo_children():
             w.destroy()
         self.test_checkvars.clear()
+
+        self.select_all_var = ctk.BooleanVar(value=False)
+        def on_select_all():
+            val = self.select_all_var.get()
+            for var in self.test_checkvars.values():
+                var.set(val)
+
+        ctk.CTkCheckBox(
+            self.test_check_frame,
+            text="Select All",
+            variable=self.select_all_var,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=Colors.TEAL,
+            command=on_select_all
+        ).pack(anchor="w", padx=8, pady=(2, 10))
+
         for m in load_config().get("members", []):
             var = ctk.BooleanVar(value=False)
             self.test_checkvars[m["user_id"]] = var
