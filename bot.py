@@ -3,23 +3,17 @@ Element Announce Bot — Matrix/Element version of the Telegram Announce Bot.
 
 Sends announcements to team members in an encrypted Matrix room.
 Members confirm engagement by reacting with ✅ to the message.
-
-Usage:
-    python3 bot.py
 """
 
 import json
-import os
 import asyncio
 import logging
 from pathlib import Path
-from datetime import datetime, timezone
 
 from nio import (
     AsyncClient,
     AsyncClientConfig,
     InviteMemberEvent,
-    JoinError,
     LoginError,
     MegolmEvent,
     RoomMessageText,
@@ -46,95 +40,25 @@ from common import (
     save_data,
     get_member_name,
     get_or_create_dm_room,
+    matrix_login,
+    send_text,
+    send_html,
+    react_to,
+    redact_event,
+    send_announcement_to_members,
 )
-
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("bot.log"),
-        logging.StreamHandler(),
-    ],
+    handlers=[logging.FileHandler("bot.log"), logging.StreamHandler()],
 )
 log = logging.getLogger("element-bot")
 
 DEVICE_NAME = "element-announce-bot"
 
 
-# ---------------------------------------------------------------------------
-# Matrix helpers
-# ---------------------------------------------------------------------------
-
-
-async def send_text(client, room_id, text):
-    """Send a plain text message to a room (no URL previews)."""
-    content = {
-        "msgtype": "m.text",
-        "body": text,
-        "fi.mau.dont_render": True,
-    }
-    resp = await client.room_send(
-        room_id,
-        "m.room.message",
-        content,
-        ignore_unverified_devices=True,
-    )
-    return resp
-
-
-async def send_html(client, room_id, body, html):
-    """Send an HTML-formatted message to a room (no URL previews)."""
-    content = {
-        "msgtype": "m.text",
-        "body": body,
-        "format": "org.matrix.custom.html",
-        "formatted_body": html,
-        "fi.mau.dont_render": True,
-    }
-    resp = await client.room_send(
-        room_id,
-        "m.room.message",
-        content,
-        ignore_unverified_devices=True,
-    )
-    return resp
-
-
-async def react_to(client, room_id, event_id, reaction):
-    """Send a reaction to an event."""
-    content = {
-        "m.relates_to": {
-            "rel_type": "m.annotation",
-            "event_id": event_id,
-            "key": reaction,
-        }
-    }
-    resp = await client.room_send(
-        room_id,
-        "m.reaction",
-        content,
-        ignore_unverified_devices=True,
-    )
-    return resp
-
-
-async def redact_event(client, room_id, event_id, reason="Retracted by admin"):
-    """Delete (redact) a message."""
-    resp = await client.room_redact(
-        room_id,
-        event_id,
-        reason,
-        ignore_unverified_devices=True,
-    )
-    return resp
-
-
 async def create_room(client, name, topic, invite_users=None):
-    """Create an encrypted room for team communication."""
     initial_state = [
         {
             "type": "m.room.encryption",
@@ -143,7 +67,6 @@ async def create_room(client, name, topic, invite_users=None):
         }
     ]
     invite_list = invite_users or []
-
     resp = await client.room_create(
         name=name,
         topic=topic,
@@ -153,7 +76,6 @@ async def create_room(client, name, topic, invite_users=None):
         invite=invite_list,
         initial_state=initial_state,
     )
-
     if isinstance(resp, RoomCreateResponse):
         log.info(f"Created room {name}: {resp.room_id}")
         return resp.room_id
@@ -162,101 +84,50 @@ async def create_room(client, name, topic, invite_users=None):
         return None
 
 
-# ---------------------------------------------------------------------------
-# Bot callbacks
-# ---------------------------------------------------------------------------
-
-
 class BotCallbacks:
-    """Handles incoming Matrix events."""
-
     def __init__(self, client):
         self.client = client
         self.pending_announcement = None
 
     async def on_message(self, room, event):
-        """Handle incoming text messages."""
         if event.sender == self.client.user_id:
             return
-
         text = event.body.strip()
         sender = event.sender
         config = load_config()
-
-        # Check if sender is admin
         is_admin = sender == ADMIN_ID
-
         if text.startswith("/"):
             await self.handle_command(room, event, text, is_admin)
 
     async def handle_command(self, room, event, text, is_admin):
-        """Process bot commands."""
         parts = text.split(maxsplit=1)
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
 
-        if cmd == "/help":
-            await self.cmd_help(room)
-        elif cmd == "/register":
+        commands = {
+            "/help": self.cmd_help,
+            "/register": self.cmd_register,
+            "/status": self.cmd_status,
+            "/retract": self.cmd_retract,
+            "/members": self.cmd_members,
+            "/settest": self.cmd_settest,
+            "/testlist": self.cmd_testlist,
+            "/announce": self.cmd_announce,
+            "/confirm": self.cmd_confirm,
+            "/cancel": self.cmd_cancel,
+        }
+        handler = commands.get(cmd)
+        if not handler:
+            return
+        if not is_admin and cmd in ("/status", "/retract", "/members", "/settest", "/testlist", "/announce", "/confirm", "/cancel"):
+            await send_text(self.client, room.room_id, f"Only admin can use {cmd}.")
+            return
+        if cmd == "/register":
             await self.cmd_register(room, event, args)
-        elif cmd == "/status":
-            if is_admin:
-                await self.cmd_status(room)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /status."
-                )
-        elif cmd == "/retract":
-            if is_admin:
-                await self.cmd_retract(room, args)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /retract."
-                )
-        elif cmd == "/members":
-            if is_admin:
-                await self.cmd_members(room)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /members."
-                )
-        elif cmd == "/settest":
-            if is_admin:
-                await self.cmd_settest(room, args)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /settest."
-                )
-        elif cmd == "/testlist":
-            if is_admin:
-                await self.cmd_testlist(room)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /testlist."
-                )
-        elif cmd == "/announce":
-            if is_admin:
-                await self.cmd_announce(room, args)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /announce."
-                )
-        elif cmd == "/confirm":
-            if is_admin:
-                await self.cmd_confirm(room)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /confirm."
-                )
-        elif cmd == "/cancel":
-            if is_admin:
-                await self.cmd_cancel(room)
-            else:
-                await send_text(
-                    self.client, room.room_id, "Only admin can use /cancel."
-                )
+        else:
+            await handler(room, args)
 
-    async def cmd_help(self, room):
+    async def cmd_help(self, room, _args=None):
         help_text = (
             "Element Announce Bot — Commands:\n\n"
             "/register <name> — Register as a team member\n"
@@ -273,298 +144,159 @@ class BotCallbacks:
         await send_text(self.client, room.room_id, help_text)
 
     async def cmd_register(self, room, event, name):
-        """Register a member."""
         if not name:
             await send_text(self.client, room.room_id, "Usage: /register <your name>")
             return
-
         user_id = event.sender
         config = load_config()
-
         for m in config["members"]:
             if m["user_id"] == user_id:
-                await send_text(
-                    self.client,
-                    room.room_id,
-                    f"You are already registered as {m['name']}.",
-                )
+                await send_text(self.client, room.room_id, f"You are already registered as {m['name']}.")
                 return
-
         config["members"].append({"user_id": user_id, "name": name.strip()})
         save_config(config)
-
-        await send_text(
-            self.client,
-            room.room_id,
-            f"Welcome {name.strip()}! You are now registered.",
-        )
+        await send_text(self.client, room.room_id, f"Welcome {name.strip()}! You are now registered.")
         log.info(f"New member registered: {name.strip()} ({user_id})")
 
-    async def cmd_status(self, room):
-        """Show status of the latest announcement."""
+    async def cmd_status(self, room, _args=None):
         data = load_data()
         config = load_config()
-
         if not data["announcements"]:
             await send_text(self.client, room.room_id, "No announcements sent yet.")
             return
-
         latest = data["announcements"][-1]
         completed = set(latest.get("completed_by", []))
-
         lines = [f"Announcement #{latest['id']} — Status:"]
         for m in config["members"]:
             icon = "✅" if m["user_id"] in completed else "⬜"
             lines.append(f"  {icon} {m['name']}")
-
         done = len(completed)
         total = len(config["members"])
         lines.append(f"\n{done}/{total} completed")
-
         await send_text(self.client, room.room_id, "\n".join(lines))
 
     async def cmd_retract(self, room, args):
-        """Retract (redact) all messages for an announcement."""
         if not args:
-            await send_text(
-                self.client, room.room_id, "Usage: /retract <announcement_id>"
-            )
+            await send_text(self.client, room.room_id, "Usage: /retract <announcement_id>")
             return
-
         try:
             ann_id = int(args.strip())
         except ValueError:
             await send_text(self.client, room.room_id, "Invalid announcement ID.")
             return
-
         data = load_data()
-        target = None
-        for a in data["announcements"]:
-            if a["id"] == ann_id:
-                target = a
-                break
-
+        target = next((a for a in data["announcements"] if a["id"] == ann_id), None)
         if not target:
-            await send_text(
-                self.client, room.room_id, f"Announcement #{ann_id} not found."
-            )
+            await send_text(self.client, room.room_id, f"Announcement #{ann_id} not found.")
             return
-
         sent = target.get("sent_messages", [])
         if not sent:
-            await send_text(
-                self.client,
-                room.room_id,
-                f"Announcement #{ann_id} has no retractable messages.",
-            )
+            await send_text(self.client, room.room_id, f"Announcement #{ann_id} has no retractable messages.")
             return
-
         deleted = 0
         for entry in sent:
             try:
-                await redact_event(self.client, room.room_id, entry["event_id"])
+                dm_room_id = entry.get("room_id", room.room_id)
+                await redact_event(self.client, dm_room_id, entry["event_id"])
                 deleted += 1
             except Exception as e:
                 log.warning(f"Failed to redact {entry['event_id']}: {e}")
+        await send_text(self.client, room.room_id, f"Retracted {deleted}/{len(sent)} messages for announcement #{ann_id}.")
 
-        await send_text(
-            self.client,
-            room.room_id,
-            f"Retracted {deleted}/{len(sent)} messages for announcement #{ann_id}.",
-        )
-
-    async def cmd_members(self, room):
-        """List all registered members."""
+    async def cmd_members(self, room, _args=None):
         config = load_config()
         members = config.get("members", [])
         if not members:
             await send_text(self.client, room.room_id, "No members registered yet.")
             return
-
         lines = [f"Team Members ({len(members)}):"]
         for m in members:
             lines.append(f"  • {m['name']} ({m['user_id']})")
-
         await send_text(self.client, room.room_id, "\n".join(lines))
 
     async def cmd_settest(self, room, args):
-        """Add a test user ID."""
         if not args:
             await send_text(self.client, room.room_id, "Usage: /settest <user_id>")
             return
-
         user_id = args.strip()
         config = load_config()
         test_ids = config.get("test_user_ids", [])
-
         if user_id in test_ids:
-            await send_text(
-                self.client, room.room_id, f"{user_id} is already a test user."
-            )
+            await send_text(self.client, room.room_id, f"{user_id} is already a test user.")
             return
-
         test_ids.append(user_id)
         config["test_user_ids"] = test_ids
         save_config(config)
         await send_text(self.client, room.room_id, f"Added test user: {user_id}")
 
-    async def cmd_testlist(self, room):
-        """List test users."""
+    async def cmd_testlist(self, room, _args=None):
         config = load_config()
         test_ids = config.get("test_user_ids", [])
         if not test_ids:
             await send_text(self.client, room.room_id, "No test users configured.")
             return
-
         lines = ["Test Users:"]
         for uid in test_ids:
             name = get_member_name(config, uid)
             lines.append(f"  • {name} ({uid})")
-
         await send_text(self.client, room.room_id, "\n".join(lines))
 
     async def cmd_announce(self, room, args):
-        """Create a pending announcement draft (requires confirmation)."""
         if not args:
-            await send_text(
-                self.client, room.room_id, "Usage: /announce <message text>"
-            )
+            await send_text(self.client, room.room_id, "Usage: /announce <message text>")
             return
-
         self.pending_announcement = args
-        review_text = (
+        msg = (
             "⚠️ **Review Announcement Draft**:\n\n"
             f"{args}\n\n"
             "Reply with `/confirm` to broadcast to all members, or `/cancel` to discard this draft."
         )
-        await send_text(self.client, room.room_id, review_text)
+        await send_text(self.client, room.room_id, msg)
 
-    async def cmd_confirm(self, room):
-        """Confirm and send the pending announcement."""
+    async def cmd_confirm(self, room, _args=None):
         if not self.pending_announcement:
-            await send_text(
-                self.client, room.room_id, "No pending announcement to confirm."
-            )
+            await send_text(self.client, room.room_id, "No pending announcement to confirm.")
             return
-
-        args = self.pending_announcement
+        text = self.pending_announcement
         self.pending_announcement = None
-
         config = load_config()
         members = config.get("members", [])
-
         if not members:
-            await send_text(
-                self.client,
-                room.room_id,
-                "No members registered. Cannot send announcement.",
-            )
+            await send_text(self.client, room.room_id, "No members registered. Cannot send announcement.")
             return
-
-        await send_text(
-            self.client,
-            room.room_id,
-            f"Broadcasting announcement to {len(members)} members...",
-        )
-
+        await send_text(self.client, room.room_id, f"Broadcasting announcement to {len(members)} members...")
         data = load_data()
-        ann_id = len(data["announcements"]) + 1
-        sent_list = []
+        await send_announcement_to_members(self.client, config, data, text, members)
+        await send_text(self.client, room.room_id, "Announcement broadcast complete. Status will be tracked via ✅ reactions.")
 
-        for m in members:
-            try:
-                dm_room_id = await get_or_create_dm_room(self.client, m["user_id"])
-                if not dm_room_id:
-                    log.warning(f"No DM room found for {m['name']}")
-                    continue
-
-                # SAFETY: Verify room is a true DM (exactly 2 members, no name)
-                room_obj = self.client.rooms.get(dm_room_id)
-                if room_obj:
-                    member_count = len(room_obj.users)
-                    room_name = getattr(room_obj, "name", None)
-                    if member_count != 2 or (room_name and room_name.strip()):
-                        log.warning(
-                            f"SKIPPED group room for {m['name']}: '{room_name or 'unnamed'}' ({member_count} members)"
-                        )
-                        continue
-
-                # Sync to verify E2EE setup for the DM room
-                await self.client.sync(timeout=3000)
-                resp = await send_text(self.client, dm_room_id, args)
-                if hasattr(resp, "event_id"):
-                    sent_list.append(
-                        {
-                            "user_id": m["user_id"],
-                            "name": m["name"],
-                            "event_id": resp.event_id,
-                        }
-                    )
-                    log.info(f"Sent announcement to {m['name']} in DM {dm_room_id}")
-            except Exception as e:
-                log.error(f"Failed to send to {m['name']}: {e}")
-
-        if sent_list:
-            data["announcements"].append(
-                {
-                    "id": ann_id,
-                    "text": args,
-                    "completed_by": [],
-                    "sent_messages": sent_list,
-                }
-            )
-            save_data(data)
-
-            await send_text(
-                self.client,
-                room.room_id,
-                f"Announcement #{ann_id} sent to DMs of {len(sent_list)}/{len(members)} members. Status will be tracked.",
-            )
-        else:
-            await send_text(self.client, room.room_id, "Failed to send announcement.")
-
-    async def cmd_cancel(self, room):
-        """Cancel/discard the pending announcement draft."""
+    async def cmd_cancel(self, room, _args=None):
         if not self.pending_announcement:
-            await send_text(
-                self.client, room.room_id, "No pending announcement to cancel."
-            )
+            await send_text(self.client, room.room_id, "No pending announcement to cancel.")
             return
-
         self.pending_announcement = None
         await send_text(self.client, room.room_id, "Announcement draft discarded.")
 
     async def on_reaction(self, room, event):
-        """Handle reaction events (✅ confirmations)."""
         if event.type != "m.reaction":
             return
-
         source = event.source if hasattr(event, "source") else {}
         content = source.get("content", {})
         relates = content.get("m.relates_to", {})
-
         if relates.get("rel_type") != "m.annotation":
             return
-
         reacted_to_id = relates.get("event_id")
         reaction_key = relates.get("key", "")
         sender = event.sender
-
         if sender == self.client.user_id:
             return
-
         if reaction_key != "✅":
             return
-
-        # Verify the reacted event is from the bot
         try:
             resp = await self.client.room_get_event(room.room_id, reacted_to_id)
             if not hasattr(resp, "event") or resp.event.sender != self.client.user_id:
                 return
         except Exception:
             return
-
-        # Find matching announcement
         data = load_data()
         for ann in data["announcements"]:
             for sent in ann.get("sent_messages", []):
@@ -573,13 +305,10 @@ class BotCallbacks:
                         ann["completed_by"].append(sender)
                         save_data(data)
                         name = get_member_name(load_config(), sender, sender)
-                        log.info(
-                            f"{name} confirmed engagement for announcement #{ann['id']}"
-                        )
+                        log.info(f"{name} confirmed engagement for announcement #{ann['id']}")
                     return
 
     async def on_invite(self, room, event):
-        """Auto-join rooms when invited."""
         if event.state_key == self.client.user_id:
             for attempt in range(3):
                 result = await self.client.join(room.room_id)
@@ -590,13 +319,7 @@ class BotCallbacks:
                 log.error(f"Failed to join room {room.room_id} after 3 attempts")
 
     async def on_decryption_failure(self, room, event):
-        """Handle decryption failures."""
         log.warning(f"Decryption failure in {room.room_id}: {event}")
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 
 async def main():
@@ -614,71 +337,26 @@ async def main():
         encryption_enabled=False,
     )
 
-    client = AsyncClient(
-        HOMESERVER,
-        USER_ID,
-        store_path=STORE_PATH,
-        config=client_config,
-    )
-
+    client = AsyncClient(HOMESERVER, USER_ID, store_path=STORE_PATH, config=client_config)
     callbacks = BotCallbacks(client)
 
-    # Register callbacks
     client.add_event_callback(callbacks.on_message, RoomMessageText)
     client.add_event_callback(callbacks.on_invite, InviteMemberEvent)
     client.add_event_callback(callbacks.on_reaction, UnknownEvent)
     client.add_event_callback(callbacks.on_decryption_failure, MegolmEvent)
 
-    # Login
-    if CREDENTIALS_FILE.exists():
-        try:
-            creds = json.loads(CREDENTIALS_FILE.read_text())
-            client.user_id = creds["user_id"]
-            client.access_token = creds["access_token"]
-            client.device_id = creds["device_id"]
-            log.info("Loaded saved credentials")
-        except Exception:
-            log.info("Invalid credentials, logging in fresh")
-            resp = await client.login(PASSWORD, device_name=DEVICE_NAME)
-            if isinstance(resp, LoginError):
-                log.error(f"Login failed: {resp.message}")
-                return
-            CREDENTIALS_FILE.write_text(
-                json.dumps(
-                    {
-                        "user_id": client.user_id,
-                        "access_token": client.access_token,
-                        "device_id": client.device_id,
-                    }
-                )
-            )
-    elif ACCESS_TOKEN:
-        client.access_token = ACCESS_TOKEN
-        log.info("Using access token from .env")
-    else:
-        resp = await client.login(PASSWORD, device_name=DEVICE_NAME)
-        if isinstance(resp, LoginError):
-            log.error(f"Login failed: {resp.message}")
-            return
-        CREDENTIALS_FILE.write_text(
-            json.dumps(
-                {
-                    "user_id": client.user_id,
-                    "access_token": client.access_token,
-                    "device_id": client.device_id,
-                }
-            )
-        )
+    if not await matrix_login(client, DEVICE_NAME):
+        log.error("Login failed")
+        return
 
-    # Upload encryption keys
     if client.should_upload_keys:
         await client.keys_upload()
         log.info("Encryption keys uploaded")
 
     log.info(f"Bot started as {USER_ID}")
     log.info(f"Admin: {ADMIN_ID}")
-
-    # Sync forever
+    # Import JoinError here since it's only needed in the callback
+    from nio import JoinError
     await client.sync_forever(timeout=30000, full_state=True)
 
 

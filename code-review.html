@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code Review — Element Announce Bot</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1117;
+    color: #e4e6eb;
+    line-height: 1.6;
+    padding: 40px 24px;
+  }
+  .container { max-width: 880px; margin: 0 auto; }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #14b8a6;
+    margin-bottom: 4px;
+  }
+  .meta {
+    color: #9ca3af;
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 36px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #2d3139;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 20px 0 6px;
+    color: #d1d5db;
+  }
+  p, li { color: #d1d5db; font-size: 14px; }
+  ul { padding-left: 20px; margin: 6px 0 12px; }
+  li { margin-bottom: 4px; }
+  code {
+    background: #1a1d23;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: #14b8a6;
+  }
+  pre {
+    background: #1a1d23;
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: #e4e6eb;
+    border: 1px solid #2d3139;
+    margin: 8px 0 16px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 16px;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid #2d3139;
+  }
+  th {
+    color: #14b8a6;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { color: #d1d5db; }
+  .severity { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .sev-critical { background: #7f1d1d; color: #fca5a5; }
+  .sev-high { background: #7c2d12; color: #fdba74; }
+  .sev-medium { background: #713f12; color: #fde68a; }
+  .sev-low { background: #1e3a5f; color: #93c5fd; }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 12px 0 24px;
+  }
+  .summary-card {
+    background: #1a1d23;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    border: 1px solid #2d3139;
+  }
+  .summary-card .num { font-size: 32px; font-weight: 700; }
+  .summary-card .label { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Code Review: Element Announce Bot</h1>
+<p class="meta">2026-07-24 &middot; 3 Python files, 2 JS scripts, ~2250 lines</p>
+
+<div class="summary-grid">
+  <div class="summary-card">
+    <div class="num" style="color:#fca5a5;">2</div>
+    <div class="label">Critical</div>
+  </div>
+  <div class="summary-card">
+    <div class="num" style="color:#fdba74;">3</div>
+    <div class="label">High</div>
+  </div>
+  <div class="summary-card">
+    <div class="num" style="color:#fde68a;">4</div>
+    <div class="label">Medium</div>
+  </div>
+  <div class="summary-card">
+    <div class="num" style="color:#93c5fd;">6</div>
+    <div class="label">Low</div>
+  </div>
+</div>
+
+<!-- ──────── 1 ──────── -->
+<h2>1. <span class="severity sev-critical">Critical</span> E2EE is Disabled Despite Claims</h2>
+<p><code>bot.py:614</code> and <code>admin_gui.py:83</code> both set <code>encryption_enabled=False</code>. The README and branding claim "End-to-end encrypted" — this is <strong>false</strong>. Messages are sent as plaintext.</p>
+<p><strong>Fix:</strong> Either enable encryption (requires <code>libolm</code> and key upload) or update all documentation to remove E2EE claims.</p>
+
+<!-- ──────── 2 ──────── -->
+<h2>2. <span class="severity sev-high">High</span> Security Issues</h2>
+
+<h3>2.1 Credentials in Plaintext</h3>
+<p><code>bot.py:646-653</code> — <code>credentials.json</code> stores <code>access_token</code> and <code>device_id</code> in the clear on disk.</p>
+<p><strong>Fix:</strong> Use OS keychain integration or at minimum set restrictive file permissions (<code>chmod 600</code>).</p>
+
+<h3>2.2 No Input Sanitization</h3>
+<p><code>bot.py:275-301</code> — <code>/register</code> accepts arbitrary names with no validation.</p>
+<p><strong>Fix:</strong> Strip HTML, limit length, reject special characters.</p>
+
+<h3>2.3 No Rate Limiting</h3>
+<p><code>/register</code> can be spammed by any user in the room.</p>
+<p><strong>Fix:</strong> Add per-user cooldown tracking.</p>
+
+<!-- ──────── 3 ──────── -->
+<h2>3. <span class="severity sev-high">High</span> Major DRY Violations (Triple Duplicated Code)</h2>
+<p>The core send-announcement-to-DM logic (including personal name substitution and DM safety checks) is duplicated <strong>3 times</strong>:</p>
+<table>
+  <tr><th>Location</th><th>Lines</th><th>Context</th></tr>
+  <tr><td><code>bot.py</code></td><td>453–525</td><td><code>cmd_confirm</code></td></tr>
+  <tr><td><code>admin_gui.py</code></td><td>444–554</td><td><code>_worker_send_all</code></td></tr>
+  <tr><td><code>admin_gui.py</code></td><td>582–668</td><td><code>_worker_send_test</code></td></tr>
+</table>
+<p>Matrix <strong>login</strong> is also duplicated across both files.</p>
+<p><strong>Fix:</strong> Extract both login and DM-sending into shared functions in <code>common.py</code>.</p>
+
+<!-- ──────── 4 ──────── -->
+<h2>4. <span class="severity sev-medium">Medium</span> Hardcoded Personalization Logic</h2>
+<pre>if "abhijit" in m["name"].lower():
+    personal_name = "Abhijit Sir"
+else:
+    personal_name = first_name</pre>
+<p><strong>Fix:</strong> Move this to a configurable mapping in <code>config.json</code>.</p>
+
+<!-- ──────── 5 ──────── -->
+<h2>5. <span class="severity sev-medium">Medium</span> Threading + asyncio Anti-pattern</h2>
+<p>The GUI spawns <code>threading.Thread</code> with <code>asyncio.new_event_loop()</code> for every send/retract operation.</p>
+<p><strong>Fix:</strong> Use a single background event loop with <code>asyncio.run_coroutine_threadsafe()</code>.</p>
+
+<!-- ──────── 6 ──────── -->
+<h2>6. <span class="severity sev-high">High</span> Race Conditions on File I/O</h2>
+<p><code>load_config()</code> / <code>save_config()</code> are called from both the bot's async loop and GUI threads simultaneously with <strong>no file locking</strong>.</p>
+<p><strong>Fix:</strong> Add a file-level lock (e.g., <code>portalocker</code> or <code>fcntl</code>).</p>
+
+<!-- ──────── 7 ──────── -->
+<h2>7. <span class="severity sev-critical">Critical</span> GUI Retraction Uses Wrong Room ID</h2>
+<p><code>admin_gui.py:1041</code> uses the global <code>ROOM_ID</code> for redaction, but announcements are sent via DM — each DM has a different room ID.</p>
+<p><strong>Fix:</strong> Store the actual DM room ID alongside each sent message and use that for redaction.</p>
+
+<!-- ──────── 8 ──────── -->
+<h2>8. <span class="severity sev-medium">Medium</span> Fragile Reaction Handling</h2>
+<p><code>bot.py:629</code> registers <code>on_reaction</code> for <code>UnknownEvent</code> — unreliable across nio versions.</p>
+<p><strong>Fix:</strong> Use typed event classes or catch the specific reaction event type.</p>
+
+<!-- ──────── 9 ──────── -->
+<h2>9. <span class="severity sev-low">Low</span> Minor Issues</h2>
+<table>
+  <tr><th>#</th><th>Issue</th><th>Location</th></tr>
+  <tr><td>9.1</td><td>Chinese text mixed into English comment</td><td><code>common.py:74</code></td></tr>
+  <tr><td>9.2</td><td><code>get-last-post-urls.cjs</code> references hardcoded paths from another repo</td><td><code>get-last-post-urls.cjs:33</code></td></tr>
+  <tr><td>9.3</td><td><code>fi.mau.dont_render</code> is a non-standard Element fork flag</td><td><code>bot.py:78</code>, <code>admin_gui.py:139</code></td></tr>
+  <tr><td>9.4</td><td><code>.env.example</code> missing YouTube/LinkedIn env vars</td><td><code>.env.example</code></td></tr>
+  <tr><td>9.5</td><td><strong>Zero tests</strong> in the entire codebase</td><td>—</td></tr>
+  <tr><td>9.6</td><td>Template save overwrites without confirmation</td><td><code>admin_gui.py:722</code></td></tr>
+</table>
+
+<hr style="border:none;border-top:1px solid #2d3139;margin:40px 0 20px;">
+<p style="color:#6b7280;font-size:12px;text-align:center;">Generated by opencode &middot; element-announce-bot</p>
+
+</div>
+</body>
+</html>

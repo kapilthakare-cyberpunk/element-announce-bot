@@ -80,5 +80,8 @@
   "test_user_ids": [
     "@rohitejejurkar:matrix.org",
     "@kapilsthakare:matrix.org"
-  ]
+  ],
+  "name_overrides": {
+    "abhijit": "Abhijit Sir"
+  }
 }
