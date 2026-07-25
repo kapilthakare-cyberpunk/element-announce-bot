@@ -75,6 +75,14 @@
     {
       "user_id": "@rupaliyawatkar:matrix.org",
       "name": "Rupali Yawatkar"
+    },
+    {
+      "user_id": "@aliyaan:matrix.org",
+      "name": "Aleem Shaikh"
+    },
+    {
+      "user_id": "@rameshprasad:matrix.org",
+      "name": "Ramesh Prasad"
     }
   ],
   "test_user_ids": [
