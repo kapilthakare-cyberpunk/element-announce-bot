@@ -345,8 +345,9 @@ async def main():
     client.add_event_callback(callbacks.on_reaction, UnknownEvent)
     client.add_event_callback(callbacks.on_decryption_failure, MegolmEvent)
 
-    if not await matrix_login(client, DEVICE_NAME):
-        log.error("Login failed")
+    ok, login_err = await matrix_login(client, DEVICE_NAME)
+    if not ok:
+        log.error(f"Login failed: {login_err}")
         return
 
     if client.should_upload_keys:

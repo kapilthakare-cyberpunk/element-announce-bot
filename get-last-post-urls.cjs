@@ -27,12 +27,19 @@ const fs = require("fs");
 const path = require("path");
 
 // -------------------------------------------------------------------
+// -------------------------------------------------------------------
 // 1️⃣ Helper – load every .env file we might have
 // -------------------------------------------------------------------
 const dotEnvPaths = [
   path.resolve(process.cwd(), ".env"),                // pnz-marketing-2026/.env
   path.resolve(process.cwd(), ".env.telegram"),      // telegram-announce-bot/.env
   path.resolve(process.cwd(), ".env.element"),       // element-announce-bot/.env.example (renamed)
+  path.resolve(__dirname, ".env"),
+  path.resolve(__dirname, ".env.telegram"),
+  path.resolve(__dirname, ".env.element"),
+  path.resolve(__dirname, "../.env"),
+  path.resolve(__dirname, "../.env.telegram"),
+  path.resolve(__dirname, "../.env.element"),
 ];
 
 for (const file of dotEnvPaths) {
@@ -57,18 +64,33 @@ for (const file of dotEnvPaths) {
 async function getTelegramLastUrl() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_MY_CHAT_ID;
-  if (!token) return null;
+  if (token) {
+    try {
+      const url = `https://api.telegram.org/bot${token}/getUpdates?offset=-1&timeout=30`;
+      const res = await fetch(url);
+      const json = await res.json();
 
-  const url = `https://api.telegram.org/bot${token}/getUpdates?offset=-1&timeout=30`;
-  const res = await fetch(url);
-  const json = await res.json();
+      if (json.ok) {
+        const msg = json.result?.[0]?.message;
+        if (msg?.chat?.id && msg?.message_id) {
+          return `https://t.me/c/${msg.chat.id}/${msg.message_id}`;
+        }
+      }
+    } catch (e) {}
+  }
 
-  if (!json.ok) return null;
-  const msg = json.result?.[0]?.message;
-  if (!msg?.chat?.id || !msg?.message_id) return null;
+  // Fallback: Scrape official Telegram channel public web preview
+  try {
+    const channelRes = await fetch("https://t.me/s/primesnzooms");
+    const html = await channelRes.text();
+    const matches = [...html.matchAll(/https:\/\/t\.me\/primesnzooms\/([0-9]+)/g)];
+    if (matches.length > 0) {
+      const lastId = matches[matches.length - 1][1];
+      return `https://t.me/primesnzooms/${lastId}`;
+    }
+  } catch (e) {}
 
-  // Public t.me link: https://t.me/c/<chatId>/<messageId>
-  return `https://t.me/c/${msg.chat.id}/${msg.message_id}`;
+  return null;
 }
 
 async function getInstagramLastUrl() {

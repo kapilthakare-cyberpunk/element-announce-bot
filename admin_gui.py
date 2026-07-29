@@ -234,6 +234,16 @@ class AdminApp(ctk.CTk):
         )
         self.announce_text.pack(fill="both", expand=True, padx=2, pady=2)
 
+        self.enable_link_preview_var = ctk.BooleanVar(value=True)
+        self.link_preview_chk = ctk.CTkCheckBox(
+            left_col, text="Enable Link Previews for all links",
+            variable=self.enable_link_preview_var,
+            font=ctk.CTkFont(size=12),
+            fg_color=Colors.TEAL, hover_color=Colors.TEAL_DARK,
+            text_color=Colors.TEXT_PRIMARY,
+        )
+        self.link_preview_chk.pack(anchor="w", padx=0, pady=(4, 10))
+
         btns = ctk.CTkFrame(left_col, fg_color="transparent")
         btns.pack(fill="x", padx=0, pady=(0, 12))
 
@@ -328,8 +338,9 @@ class AdminApp(ctk.CTk):
         client = get_matrix_client()
 
         async def run():
-            if not await matrix_login(client, DEVICE_NAME):
-                self.after(0, lambda: self._log("Login failed. Check .env.", Colors.DANGER))
+            ok, login_err = await matrix_login(client, DEVICE_NAME)
+            if not ok:
+                self.after(0, lambda e=login_err: self._log(f"Login failed: {e}", Colors.DANGER))
                 return
             await client.sync(timeout=5000, full_state=True)
 
@@ -341,8 +352,9 @@ class AdminApp(ctk.CTk):
                 color = severity_colors.get(severity, Colors.INFO)
                 self.after(0, lambda m=msg, c=color: self._log(m, c))
 
+            enable_lp = self.enable_link_preview_var.get()
             sent, _, _ = await send_announcement_to_members(
-                client, config, data, text, members, log_callback=gui_log
+                client, config, data, text, members, log_callback=gui_log, enable_link_preview=enable_lp
             )
             if not sent:
                 self.after(0, lambda: self._log("Failed to send announcement.", Colors.DANGER))
@@ -394,8 +406,9 @@ class AdminApp(ctk.CTk):
         client = get_matrix_client()
 
         async def run():
-            if not await matrix_login(client, DEVICE_NAME):
-                self.after(0, lambda: self._log("Login failed.", Colors.DANGER))
+            ok, login_err = await matrix_login(client, DEVICE_NAME)
+            if not ok:
+                self.after(0, lambda e=login_err: self._log(f"Login failed: {e}", Colors.DANGER))
                 return
             await client.sync(timeout=5000, full_state=True)
 
@@ -407,8 +420,9 @@ class AdminApp(ctk.CTk):
                 color = severity_colors.get(severity, Colors.INFO)
                 self.after(0, lambda m=msg, c=color: self._log(m, c))
 
+            enable_lp = self.enable_link_preview_var.get()
             sent, _, count = await send_announcement_to_members(
-                client, config, data, text, members, log_callback=gui_log
+                client, config, data, text, members, log_callback=gui_log, enable_link_preview=enable_lp
             )
             if not sent:
                 self.after(0, lambda: self._log("Failed to send.", Colors.DANGER))
@@ -708,8 +722,9 @@ class AdminApp(ctk.CTk):
         client = get_matrix_client()
 
         async def run():
-            if not await matrix_login(client, DEVICE_NAME):
-                self.after(0, lambda: self._msg("Login failed.", Colors.DANGER))
+            ok, login_err = await matrix_login(client, DEVICE_NAME)
+            if not ok:
+                self.after(0, lambda e=login_err: self._msg(f"Login failed: {e}", Colors.DANGER))
                 return
             deleted = 0
             for entry in target["sent_messages"]:

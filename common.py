@@ -102,34 +102,66 @@ def get_personal_name(member_name, config):
     return member_name.split()[0]
 
 
+async def validate_matrix_credentials(client):
+    """Validate that client access_token and user_id are accepted by the homeserver."""
+    if not client.access_token or not client.user_id:
+        return False, "Access Token or User ID is missing in .env / credentials.json"
+    try:
+        res = await client.whoami()
+        if hasattr(res, "user_id") and res.user_id:
+            return True, ""
+        err_msg = getattr(res, "message", None) or getattr(res, "status_code", "Invalid credentials")
+        return False, f"Homeserver rejected access token: {err_msg}"
+    except Exception as e:
+        return False, f"Credential validation error: {e}"
+
+
 async def matrix_login(client, device_name="element-announce-bot"):
+    """Authenticate matrix client and verify token against homeserver.
+    
+    Returns (success_boolean, error_message_string).
+    """
     if CREDENTIALS_FILE.exists():
         try:
             creds = json.loads(CREDENTIALS_FILE.read_text())
-            client.user_id = creds["user_id"]
-            client.access_token = creds["access_token"]
-            client.device_id = creds["device_id"]
-            return True
-        except Exception:
-            pass
+            client.user_id = creds.get("user_id", USER_ID)
+            client.access_token = creds.get("access_token", ACCESS_TOKEN)
+            client.device_id = creds.get("device_id", "web")
+            is_valid, err = await validate_matrix_credentials(client)
+            if is_valid:
+                return True, ""
+            log.warning(f"Cached credentials invalid: {err}")
+        except Exception as e:
+            log.warning(f"Error reading credentials file: {e}")
+
     if ACCESS_TOKEN:
         client.user_id = USER_ID
         client.access_token = ACCESS_TOKEN
-        CREDENTIALS_FILE.write_text(
-            json.dumps({"user_id": USER_ID, "access_token": ACCESS_TOKEN, "device_id": "web"})
-        )
-        return True
+        is_valid, err = await validate_matrix_credentials(client)
+        if is_valid:
+            CREDENTIALS_FILE.write_text(
+                json.dumps({"user_id": USER_ID, "access_token": ACCESS_TOKEN, "device_id": "web"})
+            )
+            return True, ""
+        log.error(f"ACCESS_TOKEN in .env is invalid or expired: {err}")
+        return False, f"Invalid ACCESS_TOKEN in .env file: {err}"
+
     if PASSWORD:
         resp = await client.login(PASSWORD, device_name=device_name)
         if isinstance(resp, LoginError):
-            return False
+            err_text = getattr(resp, 'message', 'Invalid credentials')
+            log.error(f"Password login failed: {err_text}")
+            return False, f"Password login failed: {err_text}"
         CREDENTIALS_FILE.write_text(
             json.dumps({"user_id": client.user_id, "access_token": client.access_token, "device_id": client.device_id})
         )
         if client.should_upload_keys:
             await client.keys_upload()
-        return True
-    return False
+        return True, ""
+
+    err_msg = "No valid ACCESS_TOKEN or PASSWORD configured in .env file."
+    log.error(err_msg)
+    return False, err_msg
 
 
 def is_dm_room(room_obj):
@@ -183,25 +215,27 @@ async def get_or_create_dm_room(client, target_user_id):
     return None
 
 
-async def send_text(client, room_id, text):
+async def send_text(client, room_id, text, enable_link_preview=False):
     content = {
         "msgtype": "m.text",
         "body": text,
-        "fi.mau.dont_render": True,
     }
+    if not enable_link_preview:
+        content["fi.mau.dont_render"] = True
     return await client.room_send(
         room_id, "m.room.message", content, ignore_unverified_devices=True
     )
 
 
-async def send_html(client, room_id, body, html):
+async def send_html(client, room_id, body, html, enable_link_preview=False):
     content = {
         "msgtype": "m.text",
         "body": body,
         "format": "org.matrix.custom.html",
         "formatted_body": html,
-        "fi.mau.dont_render": True,
     }
+    if not enable_link_preview:
+        content["fi.mau.dont_render"] = True
     return await client.room_send(
         room_id, "m.room.message", content, ignore_unverified_devices=True
     )
@@ -220,7 +254,7 @@ async def redact_event(client, room_id, event_id, reason="Retracted by admin"):
     return await client.room_redact(room_id, event_id, reason, ignore_unverified_devices=True)
 
 
-async def send_announcement_to_members(client, config, data, text, members, log_callback=None):
+async def send_announcement_to_members(client, config, data, text, members, log_callback=None, enable_link_preview=False):
     """Send announcement to each member via DM.
 
     Returns (sent_list, updated_data, success_count).
@@ -244,7 +278,7 @@ async def send_announcement_to_members(client, config, data, text, members, log_
             await client.sync(timeout=3000)
             personal_name = get_personal_name(m["name"], config)
             personal_text = text.replace("<Name>", personal_name)
-            resp = await send_text(client, room, personal_text)
+            resp = await send_text(client, room, personal_text, enable_link_preview=enable_link_preview)
             if hasattr(resp, "event_id"):
                 sent.append({
                     "user_id": m["user_id"],
