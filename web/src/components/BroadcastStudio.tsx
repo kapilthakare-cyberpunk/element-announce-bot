@@ -77,6 +77,19 @@ export const BroadcastStudio: React.FC<BroadcastStudioProps> = ({ apiBase, membe
     } finally {
       setIsSending(false);
     }
+  const fetchLatestPostLinks = async () => {
+    setSuccessMessage('⚡ Scraping & fetching latest post URLs across IG, FB, LinkedIn & Telegram...');
+    try {
+      const res = await fetch(`${apiBase}/api/fetch_latest_links`);
+      const data = await res.json();
+      if (data.success && data.draft_text) {
+        setText(data.draft_text);
+        setSuccessMessage('⚡ Successfully fetched & drafted latest social media links!');
+        setTimeout(() => setSuccessMessage(''), 4000);
+      }
+    } catch (e) {
+      setSuccessMessage('❌ Failed to fetch latest links.');
+    }
   };
 
   const sampleMemberName = members.length > 0 ? members[0].name : 'John Doe';
@@ -107,6 +120,13 @@ export const BroadcastStudio: React.FC<BroadcastStudioProps> = ({ apiBase, membe
               LOAD TEMPLATE
             </label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                className="astryx-btn astryx-btn-primary"
+                style={{ fontSize: '12px', padding: '6px 14px', background: 'linear-gradient(135deg, #0088CC 0%, #00C6FF 100%)' }}
+                onClick={fetchLatestPostLinks}
+              >
+                ⚡ Auto-Fetch Latest Post Links
+              </button>
               {templates.map((t, idx) => (
                 <button
                   key={idx}

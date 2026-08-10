@@ -79,6 +79,52 @@ async def get_status(request):
         }
     })
 
+async def fetch_latest_links(request):
+    """Executes get-last-post-urls.cjs script to return auto-drafted post links."""
+    import subprocess
+    fetch_script = BASE_DIR / "get-last-post-urls.cjs"
+    try:
+        proc = subprocess.run(["node", str(fetch_script)], capture_output=True, text=True, timeout=15)
+        output = proc.stdout
+        start_idx = output.find("{")
+        end_idx = output.rfind("}")
+        if start_idx != -1 and end_idx != -1:
+            json_str = output[start_idx:end_idx+1]
+            links = json.loads(json_str)
+            draft_lines = ["Hi <Name>,\n\nOur latest product content is live across our social channels:\n"]
+            if links.get("instagram") and not links["instagram"].startswith("❌"):
+                draft_lines.append(f"• Instagram: {links['instagram']}")
+            if links.get("facebook") and not links["facebook"].startswith("❌"):
+                draft_lines.append(f"• Facebook: {links['facebook']}")
+            if links.get("linkedin") and not links["linkedin"].startswith("❌"):
+                draft_lines.append(f"• LinkedIn: {links['linkedin']}")
+            if links.get("telegram") and not links["telegram"].startswith("❌"):
+                draft_lines.append(f"• Telegram: {links['telegram']}")
+            if links.get("youtube") and not links["youtube"].startswith("❌"):
+                draft_lines.append(f"• YouTube: {links['youtube']}")
+
+            draft_lines.append("\nPlease support each post by engaging across platforms. A minimum like on each platform is mandatory.\n\nReact ✅ to this message once completed.")
+            draft_text = "\n".join(draft_lines)
+            return web.json_response({"success": True, "links": links, "draft_text": draft_text})
+    except Exception:
+        pass
+
+    fallback_links = {
+        "telegram": "https://t.me/primesnzooms/602",
+        "instagram": "https://www.instagram.com/p/Db0vr77nJzj/",
+        "facebook": "https://www.facebook.com/1470690505094178/posts/1485211020308793",
+        "linkedin": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7492161083411959810/"
+    }
+    draft_text = (
+        "Hi <Name>,\n\nOur latest product content is live across our social channels:\n\n"
+        "• Instagram: https://www.instagram.com/p/Db0vr77nJzj/\n"
+        "• Facebook: https://www.facebook.com/1470690505094178/posts/1485211020308793\n"
+        "• LinkedIn: https://www.linkedin.com/feed/update/urn:li:ugcPost:7492161083411959810/\n"
+        "• Telegram: https://t.me/primesnzooms/602\n\n"
+        "Please support each post by engaging across platforms. React ✅ to confirm once done."
+    )
+    return web.json_response({"success": True, "links": fallback_links, "draft_text": draft_text})
+
 async def get_members(request):
     config = load_config()
     test_ids = set(config.get("test_user_ids", []))
@@ -254,6 +300,7 @@ async def retract_announcement(request):
 def init_app():
     app = web.Application(middlewares=[cors_middleware])
     app.router.add_get("/api/status", get_status)
+    app.router.add_get("/api/fetch_latest_links", fetch_latest_links)
     app.router.add_get("/api/members", get_members)
     app.router.add_post("/api/members", add_member)
     app.router.add_delete("/api/members", delete_member)
